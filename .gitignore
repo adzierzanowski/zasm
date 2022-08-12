@@ -1,0 +1,4 @@
+*.o
+zasm
+*.s
+.vscode
