@@ -10,19 +10,66 @@
   exit(1);\
 } while (0);
 
+#define require_operand(op, ins) do {\
+  if (!op) {\
+    fail("'" ins "' instruction requires operand(s).\n");\
+    exit(1);\
+  }\
+} while (0);
+
+
+
 struct z_opcode_t *z_opcode_match(struct z_token_t *token) {
   struct z_opcode_t *opcode = malloc(sizeof (struct z_opcode_t));
+  struct z_token_t *op1 = token->child;
 
-  if (z_streq(token->value, "cp")) {
-    struct z_token_t *operand1 = token->child;
-    if (!operand1) {
-      //z_fail(token->fname, token->line, token->col, "cp instruction requires an operand.\n");
-      fail("cp instruction requires an operand\n");
-      exit(1);
+  if (z_streq(token->value, "add")) {
+    struct z_token_t *op2 = op1->child;
+    require_operand(op2, "add");
+    opcode->size = 1;
+
+    if (op1->type == Z_TOKTYPE_REGISTER_16) {
+      if (z_streq(op1->value, "hl")) {
+        if (op1->memref) {
+          match_fail("add");
+
+        } else {
+          if (op2->type == Z_TOKTYPE_REGISTER_16) {
+            if (op2->memref) {
+              match_fail("add");
+            } else {
+              switch (op2->value[0]) {
+                case 'b':
+                  opcode->bytes[0] = 0b00001001;
+                  break;
+                case 'd':
+                  opcode->bytes[0] = 0b00011001;
+                  break;
+                case 'h':
+                  opcode->bytes[0] = 0b00101001;
+                  break;
+                case 's':
+                  opcode->bytes[0] = 0b00111001;
+                  break;
+              }
+            }
+
+          } else {
+            match_fail("add");
+          }
+        }
+
+      } else {
+        match_fail("add");
+
+      }
     }
 
 
-    if (operand1->type & (Z_TOKTYPE_CHAR | Z_TOKTYPE_NUMBER)) {
+  } else if (z_streq(token->value, "cp")) {
+    require_operand(op1, "cp");
+
+    if (op1->type & (Z_TOKTYPE_CHAR | Z_TOKTYPE_NUMBER)) {
       opcode->size = 2;
       opcode->bytes[0] = 0xfe;
 
@@ -30,22 +77,85 @@ struct z_opcode_t *z_opcode_match(struct z_token_t *token) {
       match_fail("cp");
     }
 
-  } else if (z_streq(token->value, "ex")) {
-    struct z_token_t *operand1 = token->child;
+  } else if (z_streq(token->value, "dec")) {
 
-    if (!operand1) {
-      fail("ex instruction requires operands.\n");
-    }
+    if (op1->type == Z_TOKTYPE_REGISTER_8) {
+      opcode->size = 1;
 
-    if (operand1->type & Z_TOKTYPE_REGISTER_16) {
-      struct z_token_t *operand2 = operand1->child;
-
-      if (!operand2) {
-        fail("ex instruction requires operands.\n");
+      switch (op1->value[0]) {
+        case 'a':
+          opcode->bytes[0] = 0b00111101;
+          break;
+        case 'b':
+          opcode->bytes[0] = 0b00000101;
+          break;
+        case 'c':
+          opcode->bytes[0] = 0b00001101;
+          break;
+        case 'd':
+          opcode->bytes[0] = 0b00010101;
+          break;
+        case 'e':
+          opcode->bytes[0] = 0b00011101;
+          break;
+        case 'h':
+          opcode->bytes[0] = 0b00100101;
+          break;
+        case 'l':
+          opcode->bytes[0] = 0b00101101;
+          break;
+        default:
+          match_fail("dec");
+          break;
       }
 
-      if (operand2->type & Z_TOKTYPE_REGISTER_16) {
-        if (z_streq(operand1->value, "af") && z_streq(operand2->value, "af")) {
+    } else if (op1->type == Z_TOKTYPE_REGISTER_16) {
+      opcode->size = 1;
+
+      switch (op1->value[0]) {
+        case 'b':
+          opcode->bytes[0] = 0b00001011;
+          break;
+        case 'd':
+          opcode->bytes[0] = 0b00011011;
+          break;
+        case 'h':
+          opcode->bytes[0] = 0b00101011;
+          break;
+        case 's':
+          opcode->bytes[0] = 0b00111011;
+          break;
+        default:
+          match_fail("dec");
+          break;
+      }
+
+    } else {
+      match_fail("dec");
+    }
+
+  } else if (z_streq(token->value, "djnz")) {
+    require_operand(op1, "djnz");
+
+    if (op1->type == Z_TOKTYPE_NUMBER) {
+      opcode->size = 2;
+      opcode->bytes[0] = 0x10;
+      opcode->bytes[1] = op1->numval - 2;
+
+    } else {
+      match_fail("djnz");
+    }
+
+
+  } else if (z_streq(token->value, "ex")) {
+    require_operand(op1, "ex");
+
+    if (op1->type & Z_TOKTYPE_REGISTER_16) {
+      struct z_token_t *op2 = op1->child;
+      require_operand(op2, "ex");
+
+      if (op2->type & Z_TOKTYPE_REGISTER_16) {
+        if (z_streq(op1->value, "af") && z_streq(op2->value, "af")) {
           opcode->size = 1;
           opcode->bytes[0] = 0x08;
         } else {
@@ -61,16 +171,42 @@ struct z_opcode_t *z_opcode_match(struct z_token_t *token) {
     }
 
   } else if (z_streq(token->value, "inc")) {
-    struct z_token_t *operand1 = token->child;
+    require_operand(op1, "inc");
 
-    if (!operand1) {
-      fail("inc instruction requires an operand.\n");
-    }
-
-    if (operand1->type & Z_TOKTYPE_REGISTER_16) {
+    if (op1->type == Z_TOKTYPE_REGISTER_8) {
       opcode->size = 1;
 
-      switch (operand1->value[0]) {
+      switch (op1->value[0]) {
+        case 'a':
+          opcode->bytes[0] = 0b00111100;
+          break;
+        case 'b':
+          opcode->bytes[0] = 0b00000100;
+          break;
+        case 'c':
+          opcode->bytes[0] = 0b00001100;
+          break;
+        case 'd':
+          opcode->bytes[0] = 0b00010100;
+          break;
+        case 'e':
+          opcode->bytes[0] = 0b00011100;
+          break;
+        case 'h':
+          opcode->bytes[0] = 0b00100100;
+          break;
+        case 'l':
+          opcode->bytes[0] = 0b00101100;
+          break;
+        default:
+          match_fail("dec");
+          break;
+      }
+
+    } else if (op1->type & Z_TOKTYPE_REGISTER_16) {
+      opcode->size = 1;
+
+      switch (op1->value[0]) {
         case 'b':
           opcode->bytes[0] = 0b00000011;
           break;
@@ -90,49 +226,74 @@ struct z_opcode_t *z_opcode_match(struct z_token_t *token) {
     }
 
   } else if (z_streq(token->value, "ld")) {
-    struct z_token_t *operand1 = token->child;
+    require_operand(op1, "ld");
+    struct z_token_t *op2 = op1->child;
+    require_operand(op2, "ld");
 
-    if (!operand1) {
-      fail("ld instruction requires two operands.\n");
-    }
+    if (op1->type == Z_TOKTYPE_REGISTER_16) {
+      if (op1->memref) {
 
-    struct z_token_t *operand2 = operand1->child;
+        if (op2->type == Z_TOKTYPE_REGISTER_8) {
+          opcode->size = 1;
+          if (op2->memref) match_fail("ld");
 
-    if (operand1->type == Z_TOKTYPE_REGISTER_16) {
-      if (operand2->type & (Z_TOKTYPE_IDENTIFIER | Z_TOKTYPE_NUMBER)) {
-        opcode->size = 3;
+          if (z_streq(op2->value, "a")) {
+            if (z_streq(op1->value, "bc")) {
+              opcode->bytes[0] = 0x02;
 
-        if (z_streq(operand1->value, "sp")) {
-          opcode->bytes[0] = 0b00110001;
+            } else if (z_streq(op1->value, "de")) {
+              opcode->bytes[0] = 0x12;
 
-        } else if (z_streq(operand1->value, "bc")) {
-          opcode->bytes[0] = 0b00000001;
+            } else {
+              match_fail("ld");
+            }
 
-        } else if (z_streq(operand1->value, "de")) {
-          opcode->bytes[0] = 0b00010001;
+          } else {
+            match_fail("ld");
+          }
 
-        } else if (z_streq(operand1->value, "hl")) {
-          opcode->bytes[0] = 0b00100001;
 
         } else {
           match_fail("ld");
         }
 
-        if (operand2->type == Z_TOKTYPE_NUMBER) {
-          opcode->bytes[1] = operand2->numval >> 8;
-          opcode->bytes[2] = operand2->numval & 0xff;
+      } else  {
+        if (op2->type & (Z_TOKTYPE_IDENTIFIER | Z_TOKTYPE_NUMBER)) {
+          opcode->size = 3;
 
-        } else if (operand2->type == Z_TOKTYPE_IDENTIFIER) {
-          token->label_offset = 1;
+          if (z_streq(op1->value, "sp")) {
+            opcode->bytes[0] = 0b00110001;
 
+          } else if (z_streq(op1->value, "bc")) {
+            opcode->bytes[0] = 0b00000001;
+
+          } else if (z_streq(op1->value, "de")) {
+            opcode->bytes[0] = 0b00010001;
+
+          } else if (z_streq(op1->value, "hl")) {
+            opcode->bytes[0] = 0b00100001;
+
+          } else {
+            match_fail("ld");
+          }
+
+          if (op2->type == Z_TOKTYPE_NUMBER) {
+            opcode->bytes[1] = op2->numval >> 8;
+            opcode->bytes[2] = op2->numval & 0xff;
+
+          } else if (op2->type == Z_TOKTYPE_IDENTIFIER) {
+            token->label_offset = 1;
+
+          }
         }
       }
 
-    } else if (operand1->type == Z_TOKTYPE_REGISTER_8) {
-      if (operand2->type & (Z_TOKTYPE_NUMBER | Z_TOKTYPE_CHAR)) {
+
+    } else if (op1->type == Z_TOKTYPE_REGISTER_8) {
+      if (op2->type & (Z_TOKTYPE_NUMBER | Z_TOKTYPE_CHAR)) {
         opcode->size = 2;
 
-        switch (operand1->value[0]) {
+        switch (op1->value[0]) {
           case 'a':
             opcode->bytes[0] = 0b00111110;
             break;
@@ -159,19 +320,19 @@ struct z_opcode_t *z_opcode_match(struct z_token_t *token) {
             break;
         }
 
-        if (operand2->type == Z_TOKTYPE_NUMBER) {
-          opcode->bytes[1] = operand2->numval;
+        if (op2->type == Z_TOKTYPE_NUMBER) {
+          opcode->bytes[1] = op2->numval;
 
-        } else if (operand2->type == Z_TOKTYPE_CHAR) {
-          opcode->bytes[1] = operand2->value[0];
+        } else if (op2->type == Z_TOKTYPE_CHAR) {
+          opcode->bytes[1] = op2->value[0];
         }
 
-      } else if (operand2->type & Z_TOKTYPE_REGISTER_16) {
-        if (operand2->memref) {
-          if (z_streq(operand2->value, "hl")) {
+      } else if (op2->type & Z_TOKTYPE_REGISTER_16) {
+        if (op2->memref) {
+          if (z_streq(op2->value, "hl")) {
             opcode->size = 1;
 
-            switch (operand1->value[0]) {
+            switch (op1->value[0]) {
               case 'a':
                 opcode->bytes[0] = 0b01111110;
                 break;
@@ -193,28 +354,47 @@ struct z_opcode_t *z_opcode_match(struct z_token_t *token) {
               case 'l':
                 opcode->bytes[0] = 0b01101110;
                 break;
+              default:
+                match_fail("ld");
+                break;
+            }
+
+          } else if (z_streq(op2->value, "bc")) {
+            if (z_streq(op1->value, "a")) {
+              opcode->size = 1;
+              opcode->bytes[0] = 0x0a;
+            } else {
+              match_fail("ld");
+            }
+
+          } else if (z_streq(op2->value, "de")) {
+            if (z_streq(op1->value, "a")) {
+              opcode->size = 1;
+              opcode->bytes[0] = 0x1a;
+            } else {
+              match_fail("ld");
             }
 
           } else {
-            fail("ld not implemented yet.\n");
+            match_fail("ld");
           }
 
         } else {
-          fail("ld not implemented yet.\n");
+          match_fail("ld");
         }
 
 
-      } else if (operand2->type & (Z_TOKTYPE_IDENTIFIER | Z_TOKTYPE_NUMBER)) {
-        if (z_streq(operand1->value, "a") && operand2->memref) {
+      } else if (op2->type & (Z_TOKTYPE_IDENTIFIER | Z_TOKTYPE_NUMBER)) {
+        if (z_streq(op1->value, "a") && op2->memref) {
           opcode->size = 3;
           opcode->bytes[0] = 0x3a;
 
-          if (operand2->type == Z_TOKTYPE_IDENTIFIER) {
+          if (op2->type == Z_TOKTYPE_IDENTIFIER) {
             token->label_offset = 1;
 
-          } else if (operand2->type == Z_TOKTYPE_NUMBER) {
-            opcode->bytes[1] = operand2->numval & 0xff;
-            opcode->bytes[2] = operand2->numval >> 8;
+          } else if (op2->type == Z_TOKTYPE_NUMBER) {
+            opcode->bytes[1] = op2->numval & 0xff;
+            opcode->bytes[2] = op2->numval >> 8;
           }
 
         } else {
@@ -229,39 +409,36 @@ struct z_opcode_t *z_opcode_match(struct z_token_t *token) {
     }
 
   } else if (z_streq(token->value, "jp")) {
-    struct z_token_t *operand1 = token->child;
+    require_operand(op1, "jp");
+
     opcode->size = 3;
 
-    if (!operand1) {
-      fail("jp instruction requires operands.\n");
-    }
-
-    if (operand1->type & (Z_TOKTYPE_IDENTIFIER | Z_TOKTYPE_NUMBER)) {
+    if (op1->type & (Z_TOKTYPE_IDENTIFIER | Z_TOKTYPE_NUMBER)) {
       opcode->bytes[0] = 0xc3;
 
-      if (operand1->type == Z_TOKTYPE_NUMBER) {
-        opcode->bytes[1] = operand1->numval & 0xff;
-        opcode->bytes[2] = operand1->numval >> 8;
+      if (op1->type == Z_TOKTYPE_NUMBER) {
+        opcode->bytes[1] = op1->numval & 0xff;
+        opcode->bytes[2] = op1->numval >> 8;
 
-      } else if (operand1->type == Z_TOKTYPE_IDENTIFIER) {
+      } else if (op1->type == Z_TOKTYPE_IDENTIFIER) {
         token->label_offset = 1;
 
       }
 
-    } else if (operand1->type & Z_TOKTYPE_CONDITION) {
-      if (z_streq(operand1->value, "nz")) {
+    } else if (op1->type & Z_TOKTYPE_CONDITION) {
+      if (z_streq(op1->value, "nz")) {
         opcode->bytes[0] = 0xc2;
-        struct z_token_t *operand2 = operand1->child;
-        if (!operand2) {
+        struct z_token_t *op2 = op1->child;
+        if (!op2) {
           fail("jp cond requires operands.\n");
         }
 
-        if (operand2->type == Z_TOKTYPE_IDENTIFIER) {
+        if (op2->type == Z_TOKTYPE_IDENTIFIER) {
           token->label_offset = 1;
 
-        } else if (operand2->type == Z_TOKTYPE_NUMBER) {
-          opcode->bytes[0] = operand2->numval & 0xff;
-          opcode->bytes[1] = operand2->numval >> 8;
+        } else if (op2->type == Z_TOKTYPE_NUMBER) {
+          opcode->bytes[0] = op2->numval & 0xff;
+          opcode->bytes[1] = op2->numval >> 8;
 
 
         } else {
@@ -275,14 +452,33 @@ struct z_opcode_t *z_opcode_match(struct z_token_t *token) {
 
     }
 
+  } else if (z_streq(token->value, "jr")) {
+    require_operand(op1, "jr");
+
+    if (op1->type == Z_TOKTYPE_NUMBER) {
+      opcode->size = 2;
+      opcode->bytes[0] = 0x18;
+      opcode->bytes[1] = op1->numval;
+
+    } else if (op1->type == Z_TOKTYPE_CONDITION) {
+      match_fail("jr cond");
+
+    } else {
+      match_fail("jr");
+    }
+
+  } else if (z_streq(token->value, "nop")) {
+    opcode->size = 1;
+    opcode->bytes[0] = 0;
+
   } else if (z_streq(token->value, "otir")) {
     opcode->size = 2;
     opcode->bytes[0] = 0xed;
     opcode->bytes[1] = 0xb3;
 
   } else if (z_streq(token->value, "ret")) {
-    struct z_token_t *operand1 = token->child;
-    if (!operand1) {
+    struct z_token_t *op1 = token->child;
+    if (!op1) {
       opcode->size = 1;
       opcode->bytes[0] = 0xc9;
 
@@ -290,6 +486,22 @@ struct z_opcode_t *z_opcode_match(struct z_token_t *token) {
       match_fail("ret cond");
 
     }
+
+  } else if (z_streq(token->value, "rla")) {
+    opcode->size = 1;
+    opcode->bytes[0] = 0x17;
+
+  } else if (z_streq(token->value, "rlca")) {
+    opcode->size = 1;
+    opcode->bytes[0] = 0x07;
+
+  } else if (z_streq(token->value, "rra")) {
+    opcode->size = 1;
+    opcode->bytes[0] = 0x1f;
+
+  } else if (z_streq(token->value, "rrca")) {
+    opcode->size = 1;
+    opcode->bytes[0] = 0x0f;
 
 
   } else {

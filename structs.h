@@ -41,4 +41,9 @@ struct z_label_t {
   struct z_label_t *next;
 };
 
+struct z_opcode_t {
+  size_t size;
+  uint8_t bytes[4];
+};
+
 #endif

@@ -23,17 +23,31 @@ struct z_token_t **tokenize(const char *fname, size_t *tokcnt, struct z_label_t 
   bool in_string = false;
   bool in_char = false;
   bool in_memref = false;
+  bool in_comment = false;
   uint32_t expected_type = Z_TOKTYPE_ANY;
 
   for (;;) {
     char c = fgetc(f);
+
+
     codecol++;
+
+    if (in_comment) {
+      if (c == '\n') {
+        in_comment = false;
+      } else {
+        continue;
+      }
+    }
+
+#ifdef SHOW_TOKCHARS
     z_dprintf(
       fname, line, codecol,
       "Tokenizer: %s %s got char %c || current tokbuf: %s\n",
       in_string ? "(in string)" : "",
       in_char ? "(in char)" : "",
       c, tokbuf);
+#endif
 
     if (!in_string && c == '"') {
       in_string = true;
@@ -41,9 +55,13 @@ struct z_token_t **tokenize(const char *fname, size_t *tokcnt, struct z_label_t 
     } else if (!in_char && c == '\'' && !z_streq(tokbuf, "af")) {
       in_char = true;
 
+    } else if (!in_comment && c == ';') {
+      in_comment = true;
+
     } else if (isspace(c) || z_indexof(":,\"[]'", c) > -1) {
       if (c == '\n') {
         line++;
+        in_comment = false;
       }
 
       if ((in_string && c != '"') || (in_char && c != '\'')) {
@@ -196,12 +214,14 @@ struct z_token_t **tokenize(const char *fname, size_t *tokcnt, struct z_label_t 
         }
       }
 
-      //z_dprintf(fname, line, col,
-      //  "Tokenizer: NEW TOKEN: %s TYPE: %s\n\n",
-      //  token->value, z_toktype_str(token->type));
+#ifdef SHOW_NEW_TOKENS
+      z_dprintf(fname, line, col,
+        "Tokenizer: NEW TOKEN: %s TYPE: %s\n\n",
+        token->value, z_toktype_str(token->type));
+#endif
+
       memset(tokbuf, 0, TOKBUFSZ);
       col = 0;
-
       last_token = token;
 
     } else if (c == ',') {
@@ -218,6 +238,9 @@ struct z_token_t **tokenize(const char *fname, size_t *tokcnt, struct z_label_t 
     }
 
     if (c == EOF) {
+      // TODO: make sure this doesn't fail
+      z_parse_root(last_root_token, &codepos, labels);
+
       z_dprintf(fname, line, codecol, "End of file\n");
       fclose(f);
 

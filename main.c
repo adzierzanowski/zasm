@@ -22,7 +22,11 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  printf("FILENAME: %s\n", fname);
+  if (fname == NULL) {
+    fprintf(stderr, "-f INPUT_FILENAME is a required switch");
+    exit(1);
+  }
+
   struct z_label_t *labels = NULL;
   size_t tokcnt = 0;
   struct z_token_t **tokens = tokenize(fname, &tokcnt, &labels);
@@ -59,14 +63,15 @@ int main(int argc, char *argv[]) {
   size_t emitsz = 0;
   uint8_t *emitted = z_emit(tokens, tokcnt, &emitsz, labels);
 
+#ifdef SHOW_EMIT
   puts("\nEMIT:");
   for (int i = 0; i < emitsz; i++) {
     printf("%02x ", emitted[i]);
   }
+  printf("\n");
+#endif
 
   if (ofname) {
-
-
     FILE *of = fopen(ofname, "wb");
     fwrite(emitted, sizeof (uint8_t), emitsz, of);
     fclose(of);
