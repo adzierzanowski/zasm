@@ -819,6 +819,28 @@ struct z_opcode_t *z_opcode_match(struct z_token_t *token) {
                 opcode->bytes[0] = 0xcb;
                 opcode->bytes[1] = 0b01000110 | (op1->numval << 3);
 
+              } else if (z_streq(op2->value, "ix") || z_streq(op2->value, "iy")) {
+                struct z_token_t *op3 = op2->child;
+                require_operand(op3, "bit n, [ix/iy + d]");
+                struct z_token_t *op4 = op3->child;
+                require_operand(op4, "bit n, [ix/iy + d]");
+
+                opcode->size = 4;
+
+                if (z_check_ixiy(op3, op4)) {
+                  if (z_streq(op2->value, "ix")) {
+                    opcode->bytes[0] = 0xdd;
+                  } else if (z_streq(op2->value, "iy")) {
+                    opcode->bytes[0] = 0xfd;
+                  }
+
+                  opcode->bytes[1] = 0xcb;
+                  opcode->bytes[2] = op4->numval;
+                  opcode->bytes[3] = 0b01000110 | (op1->numval << 3);
+                } else {
+                  match_fail("bit n, [ix/iy + d]");
+                }
+
               } else {
                 match_fail("bit imm, [reg16]");
               }
@@ -1724,6 +1746,29 @@ struct z_opcode_t *z_opcode_match(struct z_token_t *token) {
                 opcode->bytes[0] = 0xcb;
                 opcode->bytes[1] = 0b10000110 | (op1->numval << 3);
 
+              } else if (z_streq(op2->value, "ix") || z_streq(op2->value, "iy")) {
+                struct z_token_t *op3 = op2->child;
+                require_operand(op3, "res n, [ix/iy + d]");
+                struct z_token_t *op4 = op3->child;
+                require_operand(op4, "res n, [ix/iy + d]");
+
+                opcode->size = 4;
+
+                if (z_check_ixiy(op3, op4)) {
+                  if (z_streq(op2->value, "ix")) {
+                    opcode->bytes[0] = 0xdd;
+                  } else if (z_streq(op2->value, "iy")) {
+                    opcode->bytes[0] = 0xfd;
+                  }
+
+                  opcode->bytes[1] = 0xcb;
+                  opcode->bytes[2] = op4->numval;
+                  opcode->bytes[3] = 0b10000110 | (op1->numval << 3);
+
+                } else {
+                  match_fail("res n, [ix/iy + d]");
+                }
+
               } else {
                 match_fail("res imm, [reg16]");
               }
@@ -1777,6 +1822,28 @@ struct z_opcode_t *z_opcode_match(struct z_token_t *token) {
           opcode->bytes[0] = 0xcb;
           opcode->bytes[1] = 0x16;
 
+        } else if (z_streq(op1->value, "ix") || z_streq(op1->value, "iy")) {
+          struct z_token_t *op2 = op1->child;
+          require_operand(op2, "rl [ix/iy + d]");
+          struct z_token_t *op3 = op2->child;
+          require_operand(op3, "rl [ix/iy + d]");
+
+          opcode->size = 4;
+
+          if (z_check_ixiy(op2, op3)) {
+            if (z_streq(op1->value, "ix")) {
+              opcode->bytes[0] = 0xdd;
+            } else if (z_streq(op1->value, "iy")) {
+              opcode->bytes[0] = 0xfd;
+            }
+
+            opcode->bytes[1] = 0xcb;
+            opcode->bytes[2] = op3->numval;
+            opcode->bytes[3] = 0x16;
+          } else {
+            match_fail("rl [ix/iy + d]");
+          }
+
         } else {
           match_fail("rl [reg16]");
         }
@@ -1807,6 +1874,26 @@ struct z_opcode_t *z_opcode_match(struct z_token_t *token) {
           opcode->size = 2;
           opcode->bytes[0] = 0xcb;
           opcode->bytes[1] = 0x06;
+
+        } else if (z_streq(op1->value, "ix") || z_streq(op1->value, "iy")) {
+          struct z_token_t *op2 = op1->child;
+          require_operand(op2, "rlc [ix/iy + d]");
+          struct z_token_t *op3 = op2->child;
+          require_operand(op3, "rlc [ix/iy + d]");
+
+          opcode->size = 4;
+
+          if (z_check_ixiy(op2, op3)) {
+            if (z_streq(op1->value, "ix")) {
+              opcode->bytes[0] = 0xdd;
+            } else if (z_streq(op1->value, "iy")) {
+              opcode->bytes[0] = 0xfd;
+            }
+
+            opcode->bytes[1] = 0xcb;
+            opcode->bytes[2] = op3->numval;
+            opcode->bytes[3] = 0x06;
+          }
 
         } else {
           match_fail("rlc [reg16]");
@@ -1845,6 +1932,28 @@ struct z_opcode_t *z_opcode_match(struct z_token_t *token) {
           opcode->bytes[0] = 0xcb;
           opcode->bytes[1] = 0x1e;
 
+        } else if (z_streq(op1->value, "ix") || z_streq(op1->value, "iy")) {
+          struct z_token_t *op2 = op1->child;
+          require_operand(op2, "rr [ix/iy + d]");
+          struct z_token_t *op3 = op2->child;
+          require_operand(op3, "rr [ix/iy + d]");
+
+          opcode->size = 4;
+
+          if (z_check_ixiy(op2, op3)) {
+            if (z_streq(op1->value, "ix")) {
+              opcode->bytes[0] = 0xdd;
+            } else if (z_streq(op1->value, "iy")) {
+              opcode->bytes[0] = 0xfd;
+            }
+
+            opcode->bytes[1] = 0xcb;
+            opcode->bytes[2] = op3->numval;
+            opcode->bytes[3] = 0x1e;
+          } else {
+            match_fail("rr [ix/iy + d]");
+          }
+
         } else {
           match_fail("rr [reg16]");
         }
@@ -1875,6 +1984,28 @@ struct z_opcode_t *z_opcode_match(struct z_token_t *token) {
           opcode->size = 2;
           opcode->bytes[0] = 0xcb;
           opcode->bytes[1] = 0x0e;
+
+        } else if (z_streq(op1->value, "ix") || z_streq(op1->value, "iy")) {
+          struct z_token_t *op2 = op1->child;
+          require_operand(op2, "rrc [ix/iy + d]");
+          struct z_token_t *op3 = op2->child;
+          require_operand(op3, "rrc [ix/iy + d]");
+
+          opcode->size = 4;
+
+          if (z_check_ixiy(op2, op3)) {
+            if (z_streq(op1->value, "ix")) {
+              opcode->bytes[0] = 0xdd;
+            } else if (z_streq(op1->value, "iy")) {
+              opcode->bytes[0] = 0xfd;
+            }
+
+            opcode->bytes[1] = 0xcb;
+            opcode->bytes[2] = op3->numval;
+            opcode->bytes[3] = 0x0e;
+          } else {
+            match_fail("rrc [ix/iy + d]");
+          }
 
         } else {
           match_fail("rrc [reg16]");
@@ -2043,6 +2174,29 @@ struct z_opcode_t *z_opcode_match(struct z_token_t *token) {
                 opcode->bytes[0] = 0xcb;
                 opcode->bytes[1] = 0b11000110 | (op1->numval << 3);
 
+              } else if (z_streq(op2->value, "ix") || z_streq(op2->value, "iy")) {
+                struct z_token_t *op3 = op2->child;
+                require_operand(op3, "set n, [ix/iy + d]");
+                struct z_token_t *op4 = op3->child;
+                require_operand(op4, "set n, [ix/iy + d]");
+
+                opcode->size = 4;
+
+                if (z_check_ixiy(op3, op4)) {
+                  if (z_streq(op2->value, "ix")) {
+                    opcode->bytes[0] = 0xdd;
+                  } else if (z_streq(op2->value, "iy")) {
+                    opcode->bytes[0] = 0xfd;
+                  }
+
+                  opcode->bytes[1] = 0xcb;
+                  opcode->bytes[2] = op4->numval;
+                  opcode->bytes[3] = 0b11000110 | (op1->numval << 3);
+
+                } else {
+                  match_fail("set n, [ix/iy + d]");
+                }
+
               } else {
                 match_fail("set imm, [reg16]");
               }
@@ -2077,6 +2231,28 @@ struct z_opcode_t *z_opcode_match(struct z_token_t *token) {
           opcode->bytes[0] = 0xcb;
           opcode->bytes[1] = 0x26;
 
+        } else if (z_streq(op1->value, "ix") || z_streq(op1->value, "iy")) {
+          struct z_token_t *op2 = op1->child;
+          require_operand(op2, "sla [ix/iy + d]");
+          struct z_token_t *op3 = op2->child;
+          require_operand(op3, "sla [ix/iy + d]");
+
+          opcode->size = 4;
+
+          if (z_check_ixiy(op2, op3)) {
+            if (z_streq(op1->value, "ix")) {
+              opcode->bytes[0] = 0xdd;
+            } else if (z_streq(op1->value, "iy")) {
+              opcode->bytes[0] = 0xfd;
+            }
+
+            opcode->bytes[1] = 0xcb;
+            opcode->bytes[2] = op3->numval;
+            opcode->bytes[3] = 0x26;
+          } else {
+            match_fail("sla [ix/iy + d]");
+          }
+
         } else {
           match_fail("sla [reg16]");
         }
@@ -2104,6 +2280,28 @@ struct z_opcode_t *z_opcode_match(struct z_token_t *token) {
           opcode->bytes[0] = 0xcb;
           opcode->bytes[1] = 0x2e;
 
+        } else if (z_streq(op1->value, "ix") || z_streq(op1->value, "iy")) {
+          struct z_token_t *op2 = op1->child;
+          require_operand(op2, "sra [ix/iy + d]");
+          struct z_token_t *op3 = op2->child;
+          require_operand(op3, "sra [ix/iy + d]");
+
+          opcode->size = 4;
+
+          if (z_check_ixiy(op2, op3)) {
+            if (z_streq(op1->value, "ix")) {
+              opcode->bytes[0] = 0xdd;
+            } else if (z_streq(op1->value, "iy")) {
+              opcode->bytes[0] = 0xfd;
+            }
+
+            opcode->bytes[1] = 0xcb;
+            opcode->bytes[2] = op3->numval;
+            opcode->bytes[3] = 0x2e;
+          } else {
+            match_fail("sra [ix/iy + d]");
+          }
+
         } else {
           match_fail("sra [reg16]");
         }
@@ -2130,6 +2328,28 @@ struct z_opcode_t *z_opcode_match(struct z_token_t *token) {
           opcode->size = 2;
           opcode->bytes[0] = 0xcb;
           opcode->bytes[1] = 0x3e;
+
+        } else if (z_streq(op1->value, "ix") || z_streq(op1->value, "iy")) {
+          struct z_token_t *op2 = op1->child;
+          require_operand(op2, "srl [ix/iy + d]");
+          struct z_token_t *op3 = op2->child;
+          require_operand(op3, "srl [ix/iy + d]");
+
+          opcode->size = 4;
+
+          if (z_check_ixiy(op2, op3)) {
+            if (z_streq(op1->value, "ix")) {
+              opcode->bytes[0] = 0xdd;
+            } else if (z_streq(op1->value, "iy")) {
+              opcode->bytes[0] = 0xfd;
+            }
+
+            opcode->bytes[1] = 0xcb;
+            opcode->bytes[2] = op3->numval;
+            opcode->bytes[3] = 0x3e;
+          } else {
+            match_fail("srl [ix/iy + d]");
+          }
 
         } else {
           match_fail("srl [reg16]");
