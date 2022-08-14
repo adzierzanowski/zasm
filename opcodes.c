@@ -118,15 +118,19 @@ static void z_ld_reg8(
           opcode->bytes[0] = 0x1a;
         } else if (z_streq(op2->value, "hl")) {
           opcode->bytes[0] = 0x7e;
-        } else if (z_streq(op2->value, "ix")) {
+        } else if (z_streq(op2->value, "ix") || z_streq(op2->value, "iy")) {
           struct z_token_t *op3 = op2->child;
-          require_operand(op3, "ld a, [ix + d]");
+          require_operand(op3, "ld a, [ix/iy + d]");
           struct z_token_t *op4 = op3->child;
-          require_operand(op4, "ld a, [ix + d]");
+          require_operand(op4, "ld a, [ix/iy + d]");
 
           if (z_check_ixiy(op3, op4)) {
             opcode->size = 3;
-            opcode->bytes[0] = 0xdd;
+            if (z_streq(op2->value, "ix")) {
+              opcode->bytes[0] = 0xdd;
+            } else if (z_streq(op2->value, "iy")) {
+              opcode->bytes[0] = 0xfd;
+            }
             opcode->bytes[1] = 0x7e;
             opcode->bytes[2] = op4->numval;
 
@@ -144,15 +148,19 @@ static void z_ld_reg8(
         uint8_t reg_bits = z_reg8_bits(op1);
         opcode->bytes[0] |= (reg_bits << 3);
 
-      } else if (z_streq(op2->value, "ix")) {
+      } else if (z_streq(op2->value, "ix") || z_streq(op2->value, "iy")) {
         struct z_token_t *op3 = op2->child;
-        require_operand(op3, "ld reg8, [ix + d]");
+        require_operand(op3, "ld reg8, [ix/iy + d]");
         struct z_token_t *op4 = op3->child;
-        require_operand(op4, "ld reg8, [ix + d]");
+        require_operand(op4, "ld reg8, [ix/iy + d]");
 
         if (z_check_ixiy(op3, op4)) {
           opcode->size = 3;
-          opcode->bytes[0] = 0xdd;
+          if (z_streq(op2->value, "ix")) {
+            opcode->bytes[0] = 0xdd;
+          } else if (z_streq(op2->value, "iy")) {
+            opcode->bytes[0] = 0xfd;
+          }
           opcode->bytes[1] = 0b01000110 | (z_reg8_bits(op1) << 3);
           opcode->bytes[2] = op4->numval;
 
@@ -235,9 +243,13 @@ static void z_ld_reg16(
         opcode->bytes[0] = 0xed;
         opcode->bytes[1] = 0b01111011;
 
-      } else if (z_streq(op1->value, "ix")) {
+      } else if (z_streq(op1->value, "ix") || z_streq(op1->value, "iy")) {
         opcode->size = 4;
-        opcode->bytes[0] = 0xdd;
+        if (z_streq(op1->value, "ix")) {
+          opcode->bytes[0] = 0xdd;
+        } else if (z_streq(op1->value, "iy")) {
+          opcode->bytes[0] = 0xfd;
+        }
         opcode->bytes[1] = 0x2a;
 
       } else {
@@ -253,9 +265,14 @@ static void z_ld_reg16(
         opcode->bytes[0] = 0x21;
       } else if (z_streq(op1->value, "sp")) {
         opcode->bytes[0] = 0x31;
-      } else if (z_streq(op1->value, "ix")) {
+      } else if (z_streq(op1->value, "ix") || z_streq(op1->value, "iy")) {
         opcode->size = 4;
-        opcode->bytes[0] = 0xdd;
+        if (z_streq(op1->value, "ix")) {
+          opcode->bytes[0] = 0xdd;
+        } else if (z_streq(op1->value, "iy")) {
+          opcode->bytes[0] = 0xfd;
+        }
+
         opcode->bytes[1] = 0x21;
 
       } else {
@@ -271,9 +288,14 @@ static void z_ld_reg16(
       if (z_streq(op1->value, "sp") && z_streq(op2->value, "hl")) {
         opcode->size = 1;
         opcode->bytes[0] = 0xf9;
-      } else if (z_streq(op1->value, "sp") && z_streq(op2->value, "ix")) {
+      } else if (z_streq(op1->value, "sp") &&
+          (z_streq(op2->value, "ix") || z_streq(op2->value, "iy"))) {
         opcode->size = 2;
-        opcode->bytes[0] = 0xdd;
+        if (z_streq(op2->value, "ix")) {
+          opcode->bytes[0] = 0xdd;
+        } else if (z_streq(op2->value, "iy")) {
+          opcode->bytes[0] = 0xfd;
+        }
         opcode->bytes[1] = 0xf9;
 
       } else  {
@@ -338,37 +360,45 @@ static void z_ld_reg16_ref(
 
     opcode->bytes[1] = op2->numval;
 
-  } else if (z_streq(op1->value, "ix")) {
+  } else if (z_streq(op1->value, "ix") || z_streq(op1->value, "iy")) {
     struct z_token_t *op2 = op1->child;
-    require_operand(op2, "ld [ix + d]");
+    require_operand(op2, "ld [ix/iy + d]");
     struct z_token_t *op3 = op2->child;
-    require_operand(op3, "ld [ix + d]");
+    require_operand(op3, "ld [ix/iy + d]");
     struct z_token_t *op4 = op3->child;
-    require_operand(op4, "ld [ix + d]");
+    require_operand(op4, "ld [ix/iy + d]");
 
     if (z_check_ixiy(op2, op3))  {
       if (z_typecmp(op4, Z_TOKTYPE_CHAR | Z_TOKTYPE_NUMBER)) {
         opcode->size = 4;
-        opcode->bytes[0] = 0xdd;
+        if (z_streq(op1->value, "ix")) {
+          opcode->bytes[0] = 0xdd;
+        } else if (z_streq(op1->value, "iy")) {
+          opcode->bytes[0] = 0xfd;
+        }
         opcode->bytes[1] = 0x36;
         opcode->bytes[2] = op3->numval;
         opcode->bytes[3] = op4->numval;
 
       } else if (z_typecmp(op4, Z_TOKTYPE_REGISTER_8)) {
         opcode->size = 3;
-        opcode->bytes[0] = 0xdd;
+        if (z_streq(op1->value, "ix")) {
+          opcode->bytes[0] = 0xdd;
+        } else if (z_streq(op1->value, "iy")) {
+          opcode->bytes[0] = 0xfd;
+        }
         opcode->bytes[1] = 0b01110000 | z_reg8_bits(op4);
         opcode->bytes[2] = op3->numval;
 
       } else {
-        match_fail("ld [ix + d]");
+        match_fail("ld [ix/iy + d]");
       }
 
     } else if (z_typecmp(op4, Z_TOKTYPE_REGISTER_8)) {
-      match_fail("ld [ix + d], reg8")
+      match_fail("ld [ix/iy + d], reg8")
 
     } else {
-      match_fail("ld [ix + d]");
+      match_fail("ld [ix/iy + d]");
     }
 
   } else {
@@ -414,9 +444,15 @@ static void z_ld_imm_ref(
         opcode->bytes[0] = 0xed;
         opcode->bytes[1] = 0x73;
 
-      } else if (z_streq(op2->value, "ix")) {
+      } else if (z_streq(op2->value, "ix") || z_streq(op2->value, "iy")) {
         opcode->size = 4;
-        opcode->bytes[0] = 0xdd;
+
+        if (z_streq(op2->value, "ix")) {
+          opcode->bytes[0] = 0xdd;
+        } else if (z_streq(op2->value, "iy")) {
+          opcode->bytes[0] = 0xfd;
+        }
+
         opcode->bytes[1] = 0x22;
 
       } else {
@@ -460,20 +496,24 @@ struct z_opcode_t *z_opcode_match(struct z_token_t *token) {
             opcode->size = 1;
             opcode->bytes[0] = 0x8e;
 
-          } else if (z_streq(op2->value, "ix")) {
+          } else if (z_streq(op2->value, "ix") || z_streq(op2->value, "iy")) {
             struct z_token_t *op3 = op2->child;
-            require_operand(op3, "adc reg8, [ix + d]");
+            require_operand(op3, "adc reg8, [ix/iy + d]");
             struct z_token_t *op4 = op3->child;
-            require_operand(op4, "adc reg8, [ix + d]");
+            require_operand(op4, "adc reg8, [ix/iy + d]");
 
             if (z_streq(op1->value, "a") && z_check_ixiy(op3, op4)) {
               opcode->size = 3;
-              opcode->bytes[0] = 0xdd;
+              if (z_streq(op2->value, "ix")){
+                opcode->bytes[0] = 0xdd;
+              } else if (z_streq(op2->value, "iy")) {
+                opcode->bytes[0] = 0xfd;
+              }
               opcode->bytes[1] = 0x8e;
               opcode->bytes[2] = op4->numval;
 
             } else {
-              match_fail("adc reg8, [ix + d]");
+              match_fail("adc reg8, [ix/iy + d]");
             }
 
           } else {
@@ -497,20 +537,25 @@ struct z_opcode_t *z_opcode_match(struct z_token_t *token) {
       require_operand(op2, "adc");
 
       if (op1->memref) {
-        if (z_streq(op1->value, "ix")) {
+        if (z_streq(op1->value, "ix") || z_streq(op1->value, "iy")) {
           struct z_token_t *op2 = op1->child;
-          require_operand(op2, "adc [ix + d]");
+          require_operand(op2, "adc [ix/iy + d]");
           struct z_token_t *op3 = op2->child;
-          require_operand(op2, "adc [ix + d]");
+          require_operand(op2, "adc [ix/iy + d]");
 
           if (z_check_ixiy(op2, op3)) {
             opcode->size = 3;
-            opcode->bytes[0] = 0xdd;
+            if (z_streq(op1->value, "ix")) {
+              opcode->bytes[0] = 0xdd;
+            } else if (z_streq(op1->value, "iy")) {
+              opcode->bytes[0] = 0xfd;
+            }
+
             opcode->bytes[1] = 0x9e;
             opcode->bytes[2] = op3->numval;
 
           } else {
-            match_fail("adc [ix + d]")
+            match_fail("adc [ix/iy + d]")
           }
 
         } else {
@@ -593,39 +638,43 @@ struct z_opcode_t *z_opcode_match(struct z_token_t *token) {
           }
         }
 
-      } else if (z_streq(op1->value, "ix")) {
+      } else if (z_streq(op1->value, "ix") || z_streq(op1->value, "iy")) {
         struct z_token_t *op2 = op1->child;
-        require_operand(op2, "add ix");
+        require_operand(op2, "add ix/iy");
 
         if (op1->memref) {
           match_fail("");
 
         } else {
-
           if (z_typecmp(op2, Z_TOKTYPE_REGISTER_16)) {
             if (op2->memref) {
-              match_fail("add ix, [reg16]");
+              match_fail("add ix/iy, [reg16]");
 
             } else {
               opcode->size = 2;
-              opcode->bytes[0] = 0xdd;
+              if (z_streq(op1->value, "ix")) {
+                opcode->bytes[0] = 0xdd;
+
+              } else if (z_streq(op1->value, "iy")) {
+                opcode->bytes[0] = 0xfd;
+              }
 
               if (z_streq(op2->value, "bc")) {
                 opcode->bytes[1] = 0b00001001;
               } else if (z_streq(op2->value, "de")) {
                 opcode->bytes[1] = 0b00011001;
-              } else if (z_streq(op2->value, "ix")) {
+              } else if (z_streq(op2->value, "ix") || z_streq(op2->value, "iy")) {
                 opcode->bytes[1] = 0b00101001;
               } else if (z_streq(op2->value, "sp")) {
                 opcode->bytes[1] = 0b00111001;
 
               } else {
-                match_fail("add ix, reg16");
+                match_fail("add ix/iy, reg16");
               }
             }
 
           } else {
-            match_fail("add ix");
+            match_fail("add ix/iy");
           }
         }
 
@@ -650,15 +699,20 @@ struct z_opcode_t *z_opcode_match(struct z_token_t *token) {
             opcode->size = 1;
             opcode->bytes[0] = 0x86;
 
-          } else if (z_streq(op1->value, "a") && z_streq(op2->value, "ix")) {
+          } else if (z_streq(op1->value, "a") &&
+              (z_streq(op2->value, "ix") || z_streq(op2->value, "iy"))) {
             struct z_token_t *op3 = op2->child;
-            require_operand(op3, "add reg8, [ix + d]");
+            require_operand(op3, "add reg8, [ix/iy + d]");
             struct z_token_t *op4 = op3->child;
-            require_operand(op4, "add reg8, [ix + d]");
+            require_operand(op4, "add reg8, [ix/iy + d]");
 
             if (z_check_ixiy(op3, op4)) {
               opcode->size = 2;
-              opcode->bytes[0] = 0xdd;
+              if (z_streq(op2->value, "ix")) {
+                opcode->bytes[0] = 0xdd;
+              } else if (z_streq(op2->value, "iy")) {
+                opcode->bytes[0] = 0xfd;
+              }
               opcode->bytes[1] = 0x86;
 
             } else {
@@ -699,23 +753,25 @@ struct z_opcode_t *z_opcode_match(struct z_token_t *token) {
           opcode->size = 1;
           opcode->bytes[0] = 0xa6;
 
-        } else if (z_streq(op1->value, "ix")) {
+        } else if (z_streq(op1->value, "ix") || z_streq(op1->value, "iy")) {
           struct z_token_t *op2 = op1->child;
-          require_operand(op2, "and [ix + d]");
+          require_operand(op2, "and [ix/iy + d]");
           struct z_token_t *op3 = op2->child;
-          require_operand(op3, "and [ix + d]");
+          require_operand(op3, "and [ix/iy + d]");
 
           if (z_check_ixiy(op2, op3)) {
             opcode->size = 3;
-            opcode->bytes[0] = 0xdd;
+            if (z_streq(op1->value, "ix")) {
+              opcode->bytes[0] = 0xdd;
+            } else if (z_streq(op1->value, "iy")) {
+              opcode->bytes[0] = 0xfd;
+            }
             opcode->bytes[1] = 0xa6;
             opcode->bytes[2] = op3->numval;
 
           } else {
-            match_fail("and [ix + d]");
+            match_fail("and [ix/iy + d]");
           }
-
-
 
         } else {
           match_fail("and [reg16]");
@@ -837,20 +893,24 @@ struct z_opcode_t *z_opcode_match(struct z_token_t *token) {
           opcode->size = 1;
           opcode->bytes[0] = 0xbe;
 
-        } else if (z_streq(op1->value, "ix")) {
+        } else if (z_streq(op1->value, "ix") || z_streq(op1->value, "iy")) {
           struct z_token_t *op2 = op1->child;
-          require_operand(op2, "cp [ix + d]");
+          require_operand(op2, "cp [ix/iy + d]");
           struct z_token_t *op3 = op2->child;
-          require_operand(op3, "cp [ix + d]");
+          require_operand(op3, "cp [ix/iy + d]");
 
           if (z_check_ixiy(op2, op3)) {
             opcode->size = 3;
-            opcode->bytes[0] = 0xdd;
+            if (z_streq(op1->value, "ix")) {
+              opcode->bytes[0] = 0xdd;
+            } else if (z_streq(op1->value, "iy")) {
+              opcode->bytes[0] = 0xfd;
+            }
             opcode->bytes[1] = 0xbe;
             opcode->bytes[2] = op3->numval;
 
           } else {
-            match_fail("cp [ix + d]");
+            match_fail("cp [ix/iy + d]");
           }
 
         } else {
@@ -932,16 +992,20 @@ struct z_opcode_t *z_opcode_match(struct z_token_t *token) {
         if (z_streq(op1->value, "hl")) {
           opcode->bytes[0] = 0x35;
 
-        } else if (z_streq(op1->value, "ix")) {
+        } else if (z_streq(op1->value, "ix") || z_streq(op1->value, "iy")) {
           struct z_token_t *op2 = op1->child;
-          require_operand(op2, "inc [ix + d]");
+          require_operand(op2, "inc [ix/iy + d]");
           struct z_token_t *op3 = op2->child;
-          require_operand(op3, "inc [ix + d]");
+          require_operand(op3, "inc [ix/iy + d]");
 
           if (z_check_ixiy(op2, op3)) {
             opcode->size = 3;
-            opcode->bytes[0] = 0xdd;
-            opcode->bytes[1] = 0x34;
+            if (z_streq(op1->value, "ix")) {
+              opcode->bytes[0] = 0xdd;
+            } else if (z_streq(op1->value, "iy")) {
+              opcode->bytes[0] = 0xfd;
+            }
+            opcode->bytes[1] = 0x35;
             opcode->bytes[2] = op3->numval;
 
           } else {
@@ -962,9 +1026,13 @@ struct z_opcode_t *z_opcode_match(struct z_token_t *token) {
           opcode->bytes[0] = 0b00101011;
         } else if (z_streq(op1->value, "sp")) {
           opcode->bytes[0] = 0b00111011;
-        } else if (z_streq(op1->value, "ix")) {
+        } else if (z_streq(op1->value, "ix") || z_streq(op1->value, "iy")) {
           opcode->size = 2;
-          opcode->bytes[0] = 0xdd;
+          if (z_streq(op1->value, "ix")) {
+            opcode->bytes[0] = 0xdd;
+          } else if (z_streq(op1->value, "iy")) {
+            opcode->bytes[0] = 0xfd;
+          }
           opcode->bytes[1] = 0x2b;
         } else {
           match_fail("dec reg16");
@@ -1013,9 +1081,13 @@ struct z_opcode_t *z_opcode_match(struct z_token_t *token) {
                 opcode->size = 1;
                 opcode->bytes[0] = 0xe3;
 
-              } else if (z_streq(op2->value, "ix")) {
+              } else if (z_streq(op2->value, "ix") || z_streq(op2->value, "iy")) {
                 opcode->size = 2;
-                opcode->bytes[0] = 0xdd;
+                if (z_streq(op2->value, "ix")) {
+                  opcode->bytes[0] = 0xdd;
+                } else if (z_streq(op2->value, "iy")) {
+                  opcode->bytes[0] = 0xfd;
+                }
                 opcode->bytes[1] = 0xe3;
 
               } else {
@@ -1201,20 +1273,25 @@ struct z_opcode_t *z_opcode_match(struct z_token_t *token) {
         if (z_streq(op1->value, "hl")) {
           opcode->bytes[0] = 0x34;
 
-        } else if (z_streq(op1->value, "ix")) {
+        } else if (z_streq(op1->value, "ix") || z_streq(op1->value, "iy")) {
           struct z_token_t *op2 = op1->child;
-          require_operand(op2, "inc ix");
+          require_operand(op2, "inc ix/iy");
           struct z_token_t *op3 = op2->child;
-          require_operand(op3, "inc ix");
+          require_operand(op3, "inc ix/iy");
 
           if (z_check_ixiy(op2, op3)) {
             opcode->size = 3;
-            opcode->bytes[0] = 0xdd;
-            opcode->bytes[1] = 0x24;
+            if (z_streq(op1->value, "ix")) {
+              opcode->bytes[0] = 0xdd;
+            } else if (z_streq(op1->value, "iy")) {
+              opcode->bytes[0] = 0xfd;
+            }
+
+            opcode->bytes[1] = 0x34;
             opcode->bytes[2] = op3->numval;
 
           } else {
-            match_fail("inc [ix]");
+            match_fail("inc [ix/iy]");
           }
 
         } else {
@@ -1230,9 +1307,14 @@ struct z_opcode_t *z_opcode_match(struct z_token_t *token) {
           opcode->bytes[0] = 0b00100011;
         } else if (z_streq(op1->value, "sp")) {
           opcode->bytes[0] = 0x33;
-        } else if (z_streq(op1->value, "ix")) {
+        } else if (z_streq(op1->value, "ix") || z_streq(op1->value, "iy")) {
           opcode->size = 2;
-          opcode->bytes[0] = 0xdd;
+          if (z_streq(op1->value, "ix")) {
+            opcode->bytes[0] = 0xdd;
+          } else if (z_streq(op1->value, "iy")) {
+            opcode->bytes[0] = 0xfd;
+          }
+
           opcode->bytes[1] = 0x23;
         } else {
           match_fail("inc reg16");
@@ -1313,9 +1395,13 @@ struct z_opcode_t *z_opcode_match(struct z_token_t *token) {
           opcode->size = 1;
           opcode->bytes[0] = 0xe9;
 
-        } else if (z_streq(op1->value, "ix")) {
+        } else if (z_streq(op1->value, "ix") || z_streq(op1->value, "iy")) {
           opcode->size = 2;
-          opcode->bytes[0] = 0xdd;
+          if (z_streq(op1->value, "ix")) {
+            opcode->bytes[0] = 0xdd;
+          } else if (z_streq(op1->value, "iy")) {
+            opcode->bytes[0] = 0xfd;
+          }
           opcode->bytes[1] = 0xe9;
 
         } else {
@@ -1416,15 +1502,20 @@ struct z_opcode_t *z_opcode_match(struct z_token_t *token) {
           opcode->size = 1;
           opcode->bytes[0] = 0xb6;
 
-        } else if (z_streq(op1->value, "ix")) {
+        } else if (z_streq(op1->value, "ix") || z_streq(op1->value, "iy")) {
           struct z_token_t *op2 = op1->child;
-          require_operand(op2, "or [ix + d]");
+          require_operand(op2, "or [ix/iy + d]");
           struct z_token_t *op3 = op2->child;
-          require_operand(op3, "or [ix + d]");
+          require_operand(op3, "or [ix/iy + d]");
 
           if (z_check_ixiy(op2, op3)) {
             opcode->size = 3;
-            opcode->bytes[0] = 0xdd;
+            if (z_streq(op1->value, "ix")) {
+              opcode->bytes[0] = 0xdd;
+            } else if (z_streq(op1->value, "iy")) {
+              opcode->bytes[0] = 0xfd;
+            }
+
             opcode->bytes[1] = 0xb6;
             opcode->bytes[2] = op3->numval;
 
@@ -1551,9 +1642,13 @@ struct z_opcode_t *z_opcode_match(struct z_token_t *token) {
           opcode->bytes[0] = 0b11100001;
         } else if (z_streq(op1->value, "af")) {
           opcode->bytes[0] = 0b11110001;
-        } else if (z_streq(op1->value, "ix")) {
+        } else if (z_streq(op1->value, "ix") || z_streq(op1->value, "iy")) {
           opcode->size = 2;
-          opcode->bytes[0] = 0xdd;
+          if (z_streq(op1->value, "ix")) {
+            opcode->bytes[0] = 0xdd;
+          } else if (z_streq(op1->value, "iy")) {
+            opcode->bytes[0] = 0xfd;
+          }
           opcode->bytes[1] = 0xe1;
 
         } else  {
@@ -1582,9 +1677,13 @@ struct z_opcode_t *z_opcode_match(struct z_token_t *token) {
           opcode->bytes[0] = 0b11100101;
         } else if (z_streq(op1->value, "af")) {
           opcode->bytes[0] = 0b11110101;
-        } else if (z_streq(op1->value, "ix")) {
+        } else if (z_streq(op1->value, "ix") || z_streq(op1->value, "iy")) {
           opcode->size = 2;
-          opcode->bytes[0] = 0xdd;
+          if (z_streq(op1->value, "ix")) {
+            opcode->bytes[0] = 0xdd;
+          } else if (z_streq(op1->value, "iy")) {
+            opcode->bytes[0] = 0xfd;
+          }
           opcode->bytes[1] = 0xe5;
 
         } else {
@@ -2057,15 +2156,19 @@ struct z_opcode_t *z_opcode_match(struct z_token_t *token) {
           opcode->size = 1;
           opcode->bytes[0] = 0x96;
 
-        } else if (z_streq(op1->value, "ix")) {
+        } else if (z_streq(op1->value, "ix") || z_streq(op1->value, "iy")) {
           struct z_token_t *op2 = op1->child;
-          require_operand(op2, "sub [ix + d]");
+          require_operand(op2, "sub [ix/iy + d]");
           struct z_token_t *op3 = op2->child;
-          require_operand(op3, "sub [ix + d]");
+          require_operand(op3, "sub [ix/iy + d]");
 
           if (z_check_ixiy(op2, op3)) {
             opcode->size = 3;
-            opcode->bytes[0] = 0xdd;
+            if (z_streq(op1->value, "ix")) {
+              opcode->bytes[0] = 0xdd;
+            } else if (z_streq(op1->value, "iy")){
+              opcode->bytes[0] = 0xfd;
+            }
             opcode->bytes[1] = 0x96;
             opcode->bytes[2] = op3->numval;
 
@@ -2104,20 +2207,24 @@ struct z_opcode_t *z_opcode_match(struct z_token_t *token) {
           opcode->size = 1;
           opcode->bytes[0] = 0xae;
 
-        } else if (z_streq(op1->value, "ix")) {
+        } else if (z_streq(op1->value, "ix") || z_streq(op1->value, "iy")) {
           struct z_token_t *op2 = op1->child;
-          require_operand(op2, "xor [ix + d]");
+          require_operand(op2, "xor [ix/iy + d]");
           struct z_token_t *op3 = op2->child;
-          require_operand(op3, "xor [ix + d]");
+          require_operand(op3, "xor [ix/iy + d]");
 
           if (z_check_ixiy(op2, op3)) {
             opcode->size = 3;
-            opcode->bytes[0] = 0xdd;
+            if (z_streq(op1->value, "ix")) {
+              opcode->bytes[0] = 0xdd;
+            } else if (z_streq(op1->value, "iy")) {
+              opcode->bytes[0] = 0xfd;
+            }
             opcode->bytes[1] = 0xae;
             opcode->bytes[2] = op3->numval;
 
           } else {
-            match_fail("xor [ix + d]");
+            match_fail("xor [ix/iy + d]");
           }
 
         } else {
