@@ -18,6 +18,7 @@ enum z_toktype_t {
   Z_TOKTYPE_REGISTER_8 = 128,
   Z_TOKTYPE_CONDITION = 256,
   Z_TOKTYPE_CHAR = 512,
+  Z_TOKTYPE_OPERATOR = 1024,
   Z_TOKTYPE_ANY = 0x7fffffff
 };
 

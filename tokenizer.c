@@ -42,6 +42,7 @@ struct z_token_t **tokenize(const char *fname, size_t *tokcnt, struct z_label_t 
       if (c == '\n') {
         line++;
         codepos = 0;
+        last_char_isspace = true;
         in_comment = false;
       }
       continue;
@@ -81,8 +82,11 @@ struct z_token_t **tokenize(const char *fname, size_t *tokcnt, struct z_label_t 
 
       struct z_token_t *token = z_token_new(fname, line, codecol, tokbuf);
 
-      if (c == ']' && in_memref) {
+      if (in_memref) {
         token->memref = true;
+      }
+
+      if (c == ']' && in_memref) {
         in_memref = false;
       }
 
@@ -200,6 +204,12 @@ struct z_token_t **tokenize(const char *fname, size_t *tokcnt, struct z_label_t 
         expected_type = Z_TOKTYPE_ANY;
         z_token_link(last_token, token);
 
+      } else if (z_strmatch(tokbuf, "+", "-", "*", "/", "(", ")", NULL)) {
+        token->type = Z_TOKTYPE_OPERATOR;
+        z_check_type(f, fname, line, codecol, expected_type, token);
+        expected_type = Z_TOKTYPE_ANY;
+        z_token_link(last_token, token);
+
       } else {
         char *endptr = NULL;
         uint32_t num = strtoul(tokbuf, &endptr, 0);
@@ -291,6 +301,7 @@ const char *z_toktype_str(enum z_toktype_t type) {
     case Z_TOKTYPE_CONDITION: return "COND";
     case Z_TOKTYPE_STRING: return "STR";
     case Z_TOKTYPE_CHAR: return "CHR";
+    case Z_TOKTYPE_OPERATOR: return "OPER";
     case Z_TOKTYPE_ANY: return "(any)";
   }
 }

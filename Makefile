@@ -1,10 +1,10 @@
 CFLAGS = -Wall -Wpedantic \
 -Wno-gnu-binary-literal \
 -DSHOW_EMIT \
+-DSHOW_TOKCHARS \
+-DSHOW_NEW_TOKENS \
 -DDEBUG
 
-#-DSHOW_TOKCHARS \
-#-DSHOW_NEW_TOKENS \
 
 .PHONY: all
 all: zasm
