@@ -3,6 +3,10 @@
 
 struct z_token_t **tokenize(const char *fname, size_t *tokcnt, struct z_label_t **labels) {
   FILE *f = fopen(fname, "r");
+  if (f == NULL) {
+    fprintf(stderr, "Couldn't open '%s'.\n", fname);
+    exit(1);
+  }
 
   int codepos = 0;
 
@@ -28,7 +32,6 @@ struct z_token_t **tokenize(const char *fname, size_t *tokcnt, struct z_label_t 
 
   for (;;) {
     char c = fgetc(f);
-
 
     codecol++;
 
@@ -61,6 +64,7 @@ struct z_token_t **tokenize(const char *fname, size_t *tokcnt, struct z_label_t 
     } else if (isspace(c) || z_indexof(":,\"[]'", c) > -1) {
       if (c == '\n') {
         line++;
+        codecol = 0;
         in_comment = false;
       }
 
@@ -96,6 +100,7 @@ struct z_token_t **tokenize(const char *fname, size_t *tokcnt, struct z_label_t 
 
       } else if (c == '\'' && in_char) {
         token->type = Z_TOKTYPE_CHAR;
+        token->numval = (uint8_t) token->value[0];
         z_check_type(f, fname, line, codecol, expected_type, token);
         expected_type = Z_TOKTYPE_ANY;
         z_token_link(last_token, token);
@@ -173,7 +178,18 @@ struct z_token_t **tokenize(const char *fname, size_t *tokcnt, struct z_label_t 
         expected_type = Z_TOKTYPE_ANY;
         z_token_link(last_token, token);
 
-      } else if (z_strmatch(tokbuf, "a", "b", "c", "d", "e", "h", "l", NULL)) {
+      } else if (z_streq(tokbuf, "c")) {
+        if (z_strmatch(last_root_token->value, "jr", "ret", "call", "jp", NULL)) {
+          token->type = Z_TOKTYPE_CONDITION;
+        } else {
+          token->type = Z_TOKTYPE_REGISTER_8;
+        }
+
+        z_check_type(f, fname, line, codecol, expected_type, token);
+        expected_type = Z_TOKTYPE_ANY;
+        z_token_link(last_token, token);
+
+      } else if (z_strmatch(tokbuf, "a", "b", "d", "e", "h", "l", "i", "r", NULL)) {
         token->type = Z_TOKTYPE_REGISTER_8;
         z_check_type(f, fname, line, codecol, expected_type, token);
         expected_type = Z_TOKTYPE_ANY;
@@ -387,4 +403,8 @@ void z_label_add(struct z_label_t **labels, struct z_label_t *label) {
     ptr = ptr->next;
   }
   ptr->next = label;
+}
+
+bool z_typecmp(struct z_token_t *token, int types) {
+  return (token->type & types);
 }
