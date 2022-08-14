@@ -32,25 +32,20 @@ struct z_token_t **tokenize(const char *fname, size_t *tokcnt, struct z_label_t 
 
   for (;;) {
     char c = fgetc(f);
+  #if SHOW_TOKCHARS
+    printf("c=%c [comment %d] [string %d] [memref %d] [char %d] [tokbuf '%s']\n", c, in_comment, in_string, in_memref, in_char, tokbuf);
+  #endif
 
     codecol++;
 
     if (in_comment) {
       if (c == '\n') {
+        line++;
+        codepos = 0;
         in_comment = false;
-      } else {
-        continue;
       }
+      continue;
     }
-
-#ifdef SHOW_TOKCHARS
-    z_dprintf(
-      fname, line, codecol,
-      "Tokenizer: %s %s got char %c || current tokbuf: %s\n",
-      in_string ? "(in string)" : "",
-      in_char ? "(in char)" : "",
-      c, tokbuf);
-#endif
 
     if (!in_string && c == '"') {
       in_string = true;
@@ -119,7 +114,7 @@ struct z_token_t **tokenize(const char *fname, size_t *tokcnt, struct z_label_t 
           "nop", "rlca", "rrca", "rla", "rra", "daa", "cpl", "scf", "ccf",
           "halt", "ei", "di", "ldi", "cpi", "ini", "outi", "ldd", "cpd", "ind",
           "outd", "ldir", "cpir", "inir", "otir", "lddr", "cpdr", "indr", "otdr",
-          "rlc", "rrc", "rl", "rr", "sla", "sra", "srl", "bit", "res", "set",
+          "neg", "retn", "reti", "rrd", "rld",
           NULL)) {
         token->type = Z_TOKTYPE_INSTRUCTION;
         z_check_type(f, fname, line, codecol, expected_type, token);
@@ -132,7 +127,9 @@ struct z_token_t **tokenize(const char *fname, size_t *tokcnt, struct z_label_t 
           tokbuf,
           "ld", "inc", "dec", "ex", "add", "djnz", "jr", "adc", "sub", "sbc",
           "and", "or", "xor", "cp", "ret", "pop", "push", "rst", "exx", "jp",
-          "call", "out", "in", NULL)) {
+          "call", "out", "in", "im",
+          "rlc", "rrc", "rl", "rr", "sla", "sra", "srl", "bit", "res", "set",
+          NULL)) {
         token->type = Z_TOKTYPE_INSTRUCTION;
         z_check_type(f, fname, line, codecol, expected_type, token);
 

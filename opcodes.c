@@ -6,7 +6,7 @@
 } while (0);
 
 #define match_fail(x) do {\
-  z_fail(token->fname, token->line, token->col, "No match for the '" x "' instruction.\n");\
+  z_fail(token->fname, token->line, token->col, __FILE__ ":%d: No match for the '" x "' instruction.\n", __LINE__);\
   exit(1);\
 } while (0);
 
@@ -141,6 +141,26 @@ static void z_ld_reg8(
       uint8_t op2_bits = reg8_bits(op2);
       opcode->bytes[0] |= (op1_bits << 3) | op2_bits;
 
+    } else if (z_streq(op1->value, "i") && z_streq(op2->value, "a")) {
+      opcode->size = 2;
+      opcode->bytes[0] = 0xed;
+      opcode->bytes[1] = 0x47;
+
+    } else if (z_streq(op1->value, "r") && z_streq(op2->value, "a")) {
+      opcode->size = 2;
+      opcode->bytes[0] = 0xed;
+      opcode->bytes[1] = 0x4f;
+
+    } else if (z_streq(op1->value, "a") && z_streq(op2->value, "i")) {
+      opcode->size = 2;
+      opcode->bytes[0] = 0xed;
+      opcode->bytes[1] = 0x57;
+
+    } else if (z_streq(op1->value, "a") && z_streq(op2->value, "r")) {
+      opcode->size = 2;
+      opcode->bytes[0] = 0xed;
+      opcode->bytes[1] = 0x5f;
+
     } else {
       match_fail("ld reg8, reg8");
     }
@@ -162,6 +182,18 @@ static void z_ld_reg16(
     if (op2->memref) {
       if (z_streq(op1->value, "hl")) {
         opcode->bytes[0] = 0x2a;
+      } else if (z_streq(op1->value, "bc")) {
+        opcode->size = 4;
+        opcode->bytes[0] = 0xed;
+        opcode->bytes[1] = 0b01001011;
+      } else if (z_streq(op1->value, "de")) {
+        opcode->size = 4;
+        opcode->bytes[0] = 0xed;
+        opcode->bytes[1] = 0b01011011;
+      } else if (z_streq(op1->value, "sp")) {
+        opcode->size = 4;
+        opcode->bytes[0] = 0xed;
+        opcode->bytes[1] = 0b01111011;
 
       } else {
         match_fail("ld reg16, [imm]");
@@ -201,11 +233,11 @@ static void z_ld_reg16(
   }
 
   if (z_typecmp(op2, Z_TOKTYPE_NUMBER)) {
-    opcode->bytes[1] = op2->numval & 0xff;
-    opcode->bytes[2] = op2->numval >> 8;
+    opcode->bytes[opcode->size - 2] = op2->numval & 0xff;
+    opcode->bytes[opcode->size - 1] = op2->numval >> 8;
 
   } else if (z_typecmp(op2, Z_TOKTYPE_IDENTIFIER)) {
-    token->label_offset = 1;
+    token->label_offset = opcode->size - 2;
   }
 }
 
@@ -274,24 +306,43 @@ static void z_ld_imm_ref(
     }
 
   } else if (z_typecmp(op2, Z_TOKTYPE_REGISTER_16)) {
-    if (z_streq(op2->value, "hl")) {
-      opcode->bytes[0] = 0x22;
+    if (op2->memref) {
+      match_fail("ld [imm], [reg16]");
 
     } else {
-      match_fail("ld [imm], reg16");
-    }
+      if (z_streq(op2->value, "hl")) {
+        opcode->bytes[0] = 0x22;
 
+      } else if (z_streq(op2->value, "bc")) {
+        opcode->size = 4;
+        opcode->bytes[0] = 0xed;
+        opcode->bytes[1] = 0b01000011;
+
+      } else if (z_streq(op2->value, "de")) {
+        opcode->size = 4;
+        opcode->bytes[0] = 0xed;
+        opcode->bytes[1] = 0x53;
+
+      } else if (z_streq(op2->value, "sp")) {
+        opcode->size = 4;
+        opcode->bytes[0] = 0xed;
+        opcode->bytes[1] = 0x73;
+
+      } else {
+        match_fail("ld [imm], reg16");
+      }
+    }
 
   } else {
     match_fail("ld [imm]");
   }
 
   if (z_typecmp(op1, Z_TOKTYPE_NUMBER)) {
-    opcode->bytes[1] = op1->numval & 0xff;
-    opcode->bytes[2] = op1->numval >> 8;
+    opcode->bytes[opcode->size - 2] = op1->numval & 0xff;
+    opcode->bytes[opcode->size - 1] = op1->numval >> 8;
 
   } else if (z_typecmp(op1, Z_TOKTYPE_IDENTIFIER)) {
-    token->label_offset = 1;
+    token->label_offset = opcode->size = 2;
   }
 }
 
@@ -333,6 +384,45 @@ struct z_opcode_t *z_opcode_match(struct z_token_t *token) {
       } else {
         match_fail("adc reg8");
       }
+
+    } else if (z_typecmp(op1, Z_TOKTYPE_REGISTER_16)) {
+      require_operand(op2, "adc");
+
+      if (op1->memref) {
+        match_fail("adc [reg16]")
+
+      } else {
+        if (z_streq(op1->value, "hl")) {
+          if (z_typecmp(op2, Z_TOKTYPE_REGISTER_16)) {
+            if (op2->memref) {
+              match_fail("adc reg16, [reg16]");
+
+            } else {
+              opcode->size = 2;
+              opcode->bytes[0] = 0xed;
+
+              if (z_streq(op2->value, "bc")) {
+                opcode->bytes[1] = 0b01001010;
+              } else if (z_streq(op2->value, "de")) {
+                opcode->bytes[1] = 0b01011010;
+              } else if (z_streq(op2->value, "hl")) {
+                opcode->bytes[1] = 0b01101010;
+              } else if (z_streq(op2->value, "sp")) {
+                opcode->bytes[1] = 0b01111010;
+              } else {
+                match_fail("adc reg16, reg16");
+              }
+            }
+
+          } else {
+            match_fail("adc reg16");
+          }
+
+        } else {
+          match_fail("adc reg16");
+        }
+      }
+
 
     } else {
       match_fail("adc");
@@ -556,6 +646,26 @@ struct z_opcode_t *z_opcode_match(struct z_token_t *token) {
       match_fail("cp");
     }
 
+  } else if (z_streq(token->value, "cpi")) {
+    opcode->size = 2;
+    opcode->bytes[0] = 0xed;
+    opcode->bytes[1] = 0xa1;
+
+  } else if (z_streq(token->value, "cpir")) {
+    opcode->size = 2;
+    opcode->bytes[0] = 0xed;
+    opcode->bytes[1] = 0xb1;
+
+  } else if (z_streq(token->value, "cpd")) {
+    opcode->size = 2;
+    opcode->bytes[0] = 0xed;
+    opcode->bytes[1] = 0xa9;
+
+  } else if (z_streq(token->value, "cpdr")) {
+    opcode->size = 2;
+    opcode->bytes[0] = 0xed;
+    opcode->bytes[1] = 0xb9;
+
   } else if (z_streq(token->value, "cpl")) {
     opcode->size = 1;
     opcode->bytes[0] = 0x2f;
@@ -718,6 +828,31 @@ struct z_opcode_t *z_opcode_match(struct z_token_t *token) {
     opcode->size = 1;
     opcode->bytes[0] = 0x76;
 
+  } else if (z_streq(token->value, "im")) {
+    require_operand(op1, "im");
+
+    if (z_typecmp(op1, Z_TOKTYPE_CHAR | Z_TOKTYPE_NUMBER)) {
+      opcode->size = 2;
+
+      opcode->bytes[0] = 0xed;
+      switch (op1->numval) {
+        case 0:
+          opcode->bytes[1] = 0x46;
+          break;
+        case 1:
+          opcode->bytes[1] = 0x56;
+          break;
+        case 2:
+          opcode->bytes[1] = 0x5e;
+          break;
+        default:
+          match_fail("im imm");
+      }
+
+    } else {
+      match_fail("im");
+    }
+
   } else if (z_streq(token->value, "in")) {
     require_operand(op1, "in");
     if (z_typecmp(op1, Z_TOKTYPE_REGISTER_8)) {
@@ -743,6 +878,21 @@ struct z_opcode_t *z_opcode_match(struct z_token_t *token) {
             match_fail("in reg8, imm");
           }
 
+        } else if (z_typecmp(op2, Z_TOKTYPE_REGISTER_8)) {
+          if (op2->memref) {
+            if (z_streq(op2->value, "c")) {
+              opcode->size = 2;
+              opcode->bytes[0] = 0xed;
+              opcode->bytes[1] = 0b01000000 | (reg8_bits(op1) << 3);
+
+            } else {
+              match_fail("in reg8, [reg8]");
+            }
+
+          } else {
+            match_fail("in reg8, reg8");
+          }
+
         } else {
           match_fail("in reg8");
         }
@@ -752,6 +902,25 @@ struct z_opcode_t *z_opcode_match(struct z_token_t *token) {
       match_fail("in");
     }
 
+  } else if (z_streq(token->value, "ind")) {
+    opcode->size = 2;
+    opcode->bytes[0] = 0xed;
+    opcode->bytes[1] = 0xaa;
+
+  } else if (z_streq(token->value, "indr")) {
+    opcode->size = 2;
+    opcode->bytes[0] = 0xed;
+    opcode->bytes[1] = 0xba;
+
+  } else if (z_streq(token->value, "ini")) {
+    opcode->size = 2;
+    opcode->bytes[0] = 0xed;
+    opcode->bytes[1] = 0xa2;
+
+  } else if (z_streq(token->value, "inir")) {
+    opcode->size = 2;
+    opcode->bytes[0] = 0xed;
+    opcode->bytes[1] = 0xb2;
 
   } else if (z_streq(token->value, "inc")) {
     require_operand(op1, "inc");
@@ -845,6 +1014,26 @@ struct z_opcode_t *z_opcode_match(struct z_token_t *token) {
     } else {
       match_fail("ld");
     }
+
+  } else if (z_streq(token->value, "ldi")) {
+    opcode->size = 2;
+    opcode->bytes[0] = 0xed;
+    opcode->bytes[1] = 0xa0;
+
+  } else if (z_streq(token->value, "ldir")) {
+    opcode->size = 2;
+    opcode->bytes[0] = 0xed;
+    opcode->bytes[1] = 0xb0;
+
+  } else if (z_streq(token->value, "ldd")) {
+    opcode->size = 2;
+    opcode->bytes[0] = 0xed;
+    opcode->bytes[1] = 0xa8;
+
+  } else if (z_streq(token->value, "lddr")) {
+    opcode->size = 2;
+    opcode->bytes[0] = 0xed;
+    opcode->bytes[1] = 0xb8;
 
   } else if (z_streq(token->value, "jp")) {
     require_operand(op1, "jp");
@@ -943,6 +1132,12 @@ struct z_opcode_t *z_opcode_match(struct z_token_t *token) {
       match_fail("jr");
     }
 
+  } else if (z_streq(token->value, "neg")) {
+    opcode->size = 2;
+    opcode->bytes[0] = 0xed;
+    opcode->bytes[1] = 0x44;
+
+
   } else if (z_streq(token->value, "nop")) {
     opcode->size = 1;
     opcode->bytes[0] = 0;
@@ -982,33 +1177,10 @@ struct z_opcode_t *z_opcode_match(struct z_token_t *token) {
     opcode->bytes[0] = 0xed;
     opcode->bytes[1] = 0xb3;
 
-  } else if (z_streq(token->value, "pop")) {
-    require_operand(op1, "pop");
-
-    if (z_typecmp(op1, Z_TOKTYPE_REGISTER_16)) {
-      if (op1->memref) {
-        match_fail("pop [reg16]");
-
-      } else {
-        opcode->size = 1;
-
-        if (z_streq(op1->value, "bc")) {
-          opcode->bytes[0] = 0b11000001;
-        } else if (z_streq(op1->value, "de")) {
-          opcode->bytes[0] = 0b11010001;
-        } else if (z_streq(op1->value, "hl")) {
-          opcode->bytes[0] = 0b11100001;
-        } else if (z_streq(op1->value, "af")) {
-          opcode->bytes[0] = 0b11110001;
-
-        } else  {
-          match_fail("pop reg16");
-        }
-      }
-
-    } else {
-      match_fail("pop");
-    }
+  } else if (z_streq(token->value, "otdr")) {
+    opcode->size = 2;
+    opcode->bytes[0] = 0xed;
+    opcode->bytes[1] = 0xbb;
 
   } else if (z_streq(token->value, "out")) {
     require_operand(op1, "out");
@@ -1036,8 +1208,74 @@ struct z_opcode_t *z_opcode_match(struct z_token_t *token) {
         match_fail("out imm");
       }
 
+    } else if (z_typecmp(op1, Z_TOKTYPE_REGISTER_8)) {
+      struct z_token_t *op2 = op1->child;
+      require_operand(op2, "out");
+
+      if (op1->memref) {
+        if (z_typecmp(op2, Z_TOKTYPE_REGISTER_8)) {
+          if (op2->memref) {
+            match_fail("out [reg8], [reg8]")
+
+          } else {
+            if (z_streq(op1->value, "c")) {
+              opcode->size = 2;
+              opcode->bytes[0] = 0xed;
+              opcode->bytes[1] = 0b01000001 | (reg8_bits(op2) << 3);
+
+            } else {
+              match_fail("out [reg8], reg8")
+            }
+          }
+
+        } else {
+          match_fail("out [reg8]")
+        }
+
+      } else {
+        match_fail("out reg8");
+      }
+
     } else {
       match_fail("out");
+    }
+
+  } else if (z_streq(token->value, "outd")) {
+    opcode->size = 2;
+    opcode->bytes[0] = 0xed;
+    opcode->bytes[1] = 0xab;
+
+  } else if (z_streq(token->value, "outi")) {
+    opcode->size = 2;
+    opcode->bytes[0] = 0xed;
+    opcode->bytes[1] = 0xa3;
+
+  } else if (z_streq(token->value, "pop")) {
+    require_operand(op1, "pop");
+
+    if (z_typecmp(op1, Z_TOKTYPE_REGISTER_16)) {
+      if (op1->memref) {
+        match_fail("pop [reg16]");
+
+      } else {
+        opcode->size = 1;
+
+        if (z_streq(op1->value, "bc")) {
+          opcode->bytes[0] = 0b11000001;
+        } else if (z_streq(op1->value, "de")) {
+          opcode->bytes[0] = 0b11010001;
+        } else if (z_streq(op1->value, "hl")) {
+          opcode->bytes[0] = 0b11100001;
+        } else if (z_streq(op1->value, "af")) {
+          opcode->bytes[0] = 0b11110001;
+
+        } else  {
+          match_fail("pop reg16");
+        }
+      }
+
+    } else {
+      match_fail("pop");
     }
 
   } else if (z_streq(token->value, "push")) {
@@ -1125,8 +1363,17 @@ struct z_opcode_t *z_opcode_match(struct z_token_t *token) {
 
     } else {
       match_fail("ret cond");
-
     }
+
+  } else if (z_streq(token->value, "reti")) {
+    opcode->size = 2;
+    opcode->bytes[0] = 0xed;
+    opcode->bytes[1] = 0x4d;
+
+  } else if (z_streq(token->value, "retn")) {
+    opcode->size = 2;
+    opcode->bytes[0] = 0xed;
+    opcode->bytes[1] = 0x45;
 
   } else if (z_streq(token->value, "rl")) {
     require_operand(op1, "rl");
@@ -1191,6 +1438,11 @@ struct z_opcode_t *z_opcode_match(struct z_token_t *token) {
     opcode->size = 1;
     opcode->bytes[0] = 0x07;
 
+  } else if (z_streq(token->value, "rld")) {
+    opcode->size = 2;
+    opcode->bytes[0] = 0xed;
+    opcode->bytes[1] = 0x6f;
+
   } else if (z_streq(token->value, "rr")) {
     require_operand(op1, "rr");
 
@@ -1252,6 +1504,11 @@ struct z_opcode_t *z_opcode_match(struct z_token_t *token) {
   } else if (z_streq(token->value, "rrca")) {
     opcode->size = 1;
     opcode->bytes[0] = 0x0f;
+
+  } else if (z_streq(token->value, "rrd")) {
+    opcode->size = 2;
+    opcode->bytes[0] = 0xed;
+    opcode->bytes[1] = 0x67;
 
   } else if (z_streq(token->value, "rst")) {
     require_operand(op1, "rst");
@@ -1329,6 +1586,41 @@ struct z_opcode_t *z_opcode_match(struct z_token_t *token) {
 
       } else {
         match_fail("sbc reg8");
+      }
+
+    } else if (z_typecmp(op1, Z_TOKTYPE_REGISTER_16)) {
+      struct z_token_t *op2 = op1->child;
+      require_operand(op2, "sbc");
+
+      if (op1->memref) {
+        match_fail("sbc [reg16]");
+
+      } else {
+        if (z_typecmp(op2, Z_TOKTYPE_REGISTER_16)) {
+          if (op2->memref) {
+            match_fail("sbc reg16, [reg16]");
+          } else {
+            if (z_streq(op1->value, "hl")) {
+              opcode->size = 2;
+              opcode->bytes[0] = 0xed;
+
+              if (z_streq(op2->value, "bc")) {
+                opcode->bytes[1] = 0b01000010;
+              } else if (z_streq(op2->value, "de")) {
+                opcode->bytes[1] = 0b01010010;
+              } else if (z_streq(op2->value, "hl")) {
+                opcode->bytes[1] = 0b01100010;
+              } else if (z_streq(op2->value, "sp")) {
+                opcode->bytes[1] = 0b01110010;
+              } else {
+                match_fail("sbc hl, reg16");
+              }
+
+            } else {
+              match_fail("sbc reg16, reg16");
+            }
+          }
+        }
       }
 
     } else {
