@@ -118,7 +118,9 @@ struct z_token_t **tokenize(const char *fname, size_t *tokcnt, struct z_label_t 
           tokbuf,
           "nop", "rlca", "rrca", "rla", "rra", "daa", "cpl", "scf", "ccf",
           "halt", "ei", "di", "ldi", "cpi", "ini", "outi", "ldd", "cpd", "ind",
-          "outd", "ldir", "cpir", "inir", "otir", "lddr", "cpdr", "indr", "otdr", NULL)) {
+          "outd", "ldir", "cpir", "inir", "otir", "lddr", "cpdr", "indr", "otdr",
+          "rlc", "rrc", "rl", "rr", "sla", "sra", "srl", "bit", "res", "set",
+          NULL)) {
         token->type = Z_TOKTYPE_INSTRUCTION;
         z_check_type(f, fname, line, codecol, expected_type, token);
         expected_type = Z_TOKTYPE_ANY;

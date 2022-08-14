@@ -446,6 +446,50 @@ struct z_opcode_t *z_opcode_match(struct z_token_t *token) {
       match_fail("and");
     }
 
+  } else if (z_streq(token->value, "bit")) {
+    require_operand(op1, "bit");
+    struct z_token_t *op2 = op1->child;
+    require_operand(op2, "bit");
+
+    if (z_typecmp(op1, Z_TOKTYPE_CHAR | Z_TOKTYPE_NUMBER)) {
+      if (op1->memref) {
+        match_fail("bit [imm]");
+      } else {
+        if (op1->numval > 7) {
+          match_fail("bit imm");
+        } else {
+          if (z_typecmp(op2, Z_TOKTYPE_REGISTER_8)) {
+            if (op2->memref) {
+              match_fail("bit imm, [reg8]");
+
+            } else {
+              opcode->size = 2;
+              opcode->bytes[0] = 0xcb;
+              opcode->bytes[1] = 0b01000000 | (op1->numval << 3) | reg8_bits(op2);
+            }
+
+          } else if (z_typecmp(op2, Z_TOKTYPE_REGISTER_16)) {
+            if (op2->memref) {
+              if (z_streq(op2->value, "hl")) {
+                opcode->size = 2;
+                opcode->bytes[0] = 0xcb;
+                opcode->bytes[1] = 0b01000110 | (op1->numval << 3);
+
+              } else {
+                match_fail("bit imm, [reg16]");
+              }
+
+            } else {
+              match_fail("bit imm, reg16");
+            }
+
+          } else {
+            match_fail("bit imm");
+          }
+        }
+      }
+    }
+
   } else if (z_streq(token->value, "call")) {
     require_operand(op1, "call");
 
@@ -1026,6 +1070,50 @@ struct z_opcode_t *z_opcode_match(struct z_token_t *token) {
       match_fail("push");
     }
 
+  } else if (z_streq(token->value, "res")) {
+    require_operand(op1, "res");
+    struct z_token_t *op2 = op1->child;
+    require_operand(op2, "res");
+
+    if (z_typecmp(op1, Z_TOKTYPE_CHAR | Z_TOKTYPE_NUMBER)) {
+      if (op1->memref) {
+        match_fail("res [imm]");
+      } else {
+        if (op1->numval > 7) {
+          match_fail("res imm");
+        } else {
+          if (z_typecmp(op2, Z_TOKTYPE_REGISTER_8)) {
+            if (op2->memref) {
+              match_fail("res imm, [reg8]");
+
+            } else {
+              opcode->size = 2;
+              opcode->bytes[0] = 0xcb;
+              opcode->bytes[1] = 0b10000000 | (op1->numval << 3) | reg8_bits(op2);
+            }
+
+          } else if (z_typecmp(op2, Z_TOKTYPE_REGISTER_16)) {
+            if (op2->memref) {
+              if (z_streq(op2->value, "hl")) {
+                opcode->size = 2;
+                opcode->bytes[0] = 0xcb;
+                opcode->bytes[1] = 0b10000110 | (op1->numval << 3);
+
+              } else {
+                match_fail("res imm, [reg16]");
+              }
+
+            } else {
+              match_fail("res imm, reg16");
+            }
+
+          } else {
+            match_fail("res imm");
+          }
+        }
+      }
+    }
+
   } else if (z_streq(token->value, "ret")) {
     opcode->size = 1;
 
@@ -1040,17 +1128,126 @@ struct z_opcode_t *z_opcode_match(struct z_token_t *token) {
 
     }
 
+  } else if (z_streq(token->value, "rl")) {
+    require_operand(op1, "rl");
+
+    if (z_typecmp(op1, Z_TOKTYPE_REGISTER_8)) {
+      opcode->size = 2;
+      opcode->bytes[0] = 0xcb;
+      opcode->bytes[1] = 0b00010000 | reg8_bits(op1);
+
+    } else if (z_typecmp(op1, Z_TOKTYPE_REGISTER_16)) {
+      if (op1->memref) {
+        if (z_streq(op1->value, "hl")) {
+          opcode->size = 2;
+          opcode->bytes[0] = 0xcb;
+          opcode->bytes[1] = 0x16;
+
+        } else {
+          match_fail("rl [reg16]");
+        }
+
+      } else {
+        match_fail("rl reg16");
+      }
+
+    } else {
+      match_fail("rl");
+    }
+
   } else if (z_streq(token->value, "rla")) {
     opcode->size = 1;
     opcode->bytes[0] = 0x17;
+
+  } else if (z_streq(token->value, "rlc")) {
+    require_operand(op1, "rlc");
+
+    if (z_typecmp(op1, Z_TOKTYPE_REGISTER_8)) {
+      opcode->size = 2;
+      opcode->bytes[0] = 0xcb;
+      opcode->bytes[1] = reg8_bits(op1);
+
+    } else if (z_typecmp(op1, Z_TOKTYPE_REGISTER_16)) {
+      if (op1->memref) {
+        if (z_streq(op1->value, "hl")) {
+          opcode->size = 2;
+          opcode->bytes[0] = 0xcb;
+          opcode->bytes[1] = 0x06;
+
+        } else {
+          match_fail("rlc [reg16]");
+        }
+
+      } else {
+        match_fail("rlc reg16");
+
+      }
+
+    } else {
+      match_fail("rlc");
+    }
 
   } else if (z_streq(token->value, "rlca")) {
     opcode->size = 1;
     opcode->bytes[0] = 0x07;
 
+  } else if (z_streq(token->value, "rr")) {
+    require_operand(op1, "rr");
+
+    if (z_typecmp(op1, Z_TOKTYPE_REGISTER_8)) {
+      opcode->size = 2;
+      opcode->bytes[0] = 0xcb;
+      opcode->bytes[1] = 0b00011000 | reg8_bits(op1);
+
+    } else if (z_typecmp(op1, Z_TOKTYPE_REGISTER_16)) {
+      if (op1->memref) {
+        if (z_streq(op1->value, "hl")) {
+          opcode->size = 2;
+          opcode->bytes[0] = 0xcb;
+          opcode->bytes[1] = 0x1e;
+
+        } else {
+          match_fail("rr [reg16]");
+        }
+
+      } else {
+        match_fail("rr reg16");
+      }
+
+    } else {
+      match_fail("rr");
+    }
+
   } else if (z_streq(token->value, "rra")) {
     opcode->size = 1;
     opcode->bytes[0] = 0x1f;
+
+  } else if (z_streq(token->value, "rrc")) {
+    require_operand(op1, "rrc");
+
+    if (z_typecmp(op1, Z_TOKTYPE_REGISTER_8)) {
+      opcode->size = 2;
+      opcode->bytes[0] = 0xcb;
+      opcode->bytes[1] = 0b00001000 | reg8_bits(op1);
+
+    } else if (z_typecmp(op1, Z_TOKTYPE_REGISTER_16)) {
+      if (op1->memref) {
+        if (z_streq(op1->value, "hl")) {
+          opcode->size = 2;
+          opcode->bytes[0] = 0xcb;
+          opcode->bytes[1] = 0x0e;
+
+        } else {
+          match_fail("rrc [reg16]");
+        }
+
+      } else {
+        match_fail("rrc reg16");
+      }
+
+    } else {
+      match_fail("rrc");
+    }
 
   } else if (z_streq(token->value, "rrca")) {
     opcode->size = 1;
@@ -1138,9 +1335,134 @@ struct z_opcode_t *z_opcode_match(struct z_token_t *token) {
       match_fail("sbc");
     }
 
+  } else if (z_streq(token->value, "set")) {
+    require_operand(op1, "set");
+    struct z_token_t *op2 = op1->child;
+    require_operand(op2, "set");
+
+    if (z_typecmp(op1, Z_TOKTYPE_CHAR | Z_TOKTYPE_NUMBER)) {
+      if (op1->memref) {
+        match_fail("set [imm]");
+      } else {
+        if (op1->numval > 7) {
+          match_fail("set imm");
+        } else {
+          if (z_typecmp(op2, Z_TOKTYPE_REGISTER_8)) {
+            if (op2->memref) {
+              match_fail("set imm, [reg8]");
+
+            } else {
+              opcode->size = 2;
+              opcode->bytes[0] = 0xcb;
+              opcode->bytes[1] = 0b11000000 | (op1->numval << 3) | reg8_bits(op2);
+            }
+
+          } else if (z_typecmp(op2, Z_TOKTYPE_REGISTER_16)) {
+            if (op2->memref) {
+              if (z_streq(op2->value, "hl")) {
+                opcode->size = 2;
+                opcode->bytes[0] = 0xcb;
+                opcode->bytes[1] = 0b11000110 | (op1->numval << 3);
+
+              } else {
+                match_fail("set imm, [reg16]");
+              }
+
+            } else {
+              match_fail("set imm, reg16");
+            }
+
+          } else {
+            match_fail("set imm");
+          }
+        }
+      }
+    }
+
   } else if (z_streq(token->value, "scf")) {
     opcode->size = 1;
     opcode->bytes[0] = 0x37;
+
+  } else if (z_streq(token->value, "sla")) {
+    require_operand(op1, "sla");
+
+    if (z_typecmp(op1, Z_TOKTYPE_REGISTER_8)) {
+      opcode->size = 2;
+      opcode->bytes[0] = 0xcb;
+      opcode->bytes[1] = 0b00100000 | reg8_bits(op1);
+
+    } else if (z_typecmp(op1, Z_TOKTYPE_REGISTER_16)) {
+      if (op1->memref) {
+        if (z_streq(op1->value, "hl")) {
+          opcode->size = 2;
+          opcode->bytes[0] = 0xcb;
+          opcode->bytes[1] = 0x26;
+
+        } else {
+          match_fail("sla [reg16]");
+        }
+
+      } else {
+        match_fail("sla reg16");
+      }
+
+    } else {
+      match_fail("sla");
+    }
+
+  } else if (z_streq(token->value, "sra")) {
+    require_operand(op1, "sra");
+
+    if (z_typecmp(op1, Z_TOKTYPE_REGISTER_8)) {
+      opcode->size = 2;
+      opcode->bytes[0] = 0xcb;
+      opcode->bytes[1] = 0b00101000 | reg8_bits(op1);
+
+    } else if (z_typecmp(op1, Z_TOKTYPE_REGISTER_16)) {
+      if (op1->memref) {
+        if (z_streq(op1->value, "hl")) {
+          opcode->size = 2;
+          opcode->bytes[0] = 0xcb;
+          opcode->bytes[1] = 0x2e;
+
+        } else {
+          match_fail("sra [reg16]");
+        }
+
+      } else {
+        match_fail("sra reg16");
+      }
+
+    } else {
+      match_fail("sra");
+    }
+
+  } else if (z_streq(token->value, "srl")) {
+    require_operand(op1, "srl");
+
+    if (z_typecmp(op1, Z_TOKTYPE_REGISTER_8)) {
+      opcode->size = 2;
+      opcode->bytes[0] = 0xcb;
+      opcode->bytes[1] = 0b00111000 | reg8_bits(op1);
+
+    } else if (z_typecmp(op1, Z_TOKTYPE_REGISTER_16)) {
+      if (op1->memref) {
+        if (z_streq(op1->value, "hl")) {
+          opcode->size = 2;
+          opcode->bytes[0] = 0xcb;
+          opcode->bytes[1] = 0x3e;
+
+        } else {
+          match_fail("srl [reg16]");
+        }
+
+      } else {
+        match_fail("srl reg16");
+      }
+
+    } else {
+      match_fail("srl");
+    }
 
   } else if (z_streq(token->value, "sub")) {
     require_operand(op1, "sub");
