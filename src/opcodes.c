@@ -1,14 +1,21 @@
 #include "opcodes.h"
 
 #define fail(...) do {\
-  z_fail(token->fname, token->line, token->col, __VA_ARGS__); \
+  z_fail(token, __VA_ARGS__); \
   exit(1);\
 } while (0);
 
+#ifdef DEBUG
 #define match_fail(x) do {\
-  z_fail(token->fname, token->line, token->col, __FILE__ ":%d: No match for the '" x "' instruction.\n", __LINE__);\
+  z_fail(token, __FILE__ ":%d: No match for the '" x "' instruction.\n", __LINE__);\
   exit(1);\
 } while (0);
+#else
+#define match_fail(x) do {\
+  z_fail(token, "No match for the '" x "' instruction.\n");\
+  exit(1);\
+} while (0);
+#endif
 
 #define require_operand(op, ins) do {\
   if (!op) {\
@@ -178,6 +185,10 @@ static void z_ld_reg8(
 
   } else if (z_typecmp(op2, Z_TOKTYPE_REGISTER_8)) {
     opcode->size = 1;
+
+    if (op2->memref) {
+      match_fail("ld reg8, [reg8]");
+    }
 
     if (z_strmatch(op1->value, "a", "b", "c", "d", "e", "h", "l", NULL) &&
         z_strmatch(op2->value, "a", "b", "c", "d", "e", "h", "l", NULL)) {
@@ -477,6 +488,18 @@ struct z_opcode_t *z_opcode_match(struct z_token_t *token) {
   struct z_opcode_t *opcode = malloc(sizeof (struct z_opcode_t));
   opcode->size = 0;
   struct z_token_t *op1 = token->child;
+
+  if (z_strmatch(token->value,
+    "nop", "rlca", "rrca", "rla", "rra", "daa", "cpl", "scf", "ccf", "halt",
+    "exx", "di", "ei", "neg", "retn", "reti", "rrd", "rld", "ldi", "cpi", "ini",
+    "outi", "ldd", "cpd", "ind", "outd", "ldir", "cpir", "inir", "otir", "lddr",
+    "cpdr", "indr", "otdr", NULL)) {
+      if (op1) {
+        z_fail(token,
+          "'%s' instruction doesn't have operands.\n", token->value);
+        exit(1);
+      }
+  }
 
   if (z_streq(token->value, "adc")) {
     require_operand(op1, "adc");
@@ -1353,7 +1376,11 @@ struct z_opcode_t *z_opcode_match(struct z_token_t *token) {
     require_operand(op2, "ld");
 
     if (z_typecmp(op1, Z_TOKTYPE_REGISTER_8)) {
-      z_ld_reg8(token, op1, op2, opcode);
+      if (op1->memref) {
+        match_fail("ld [reg8]");
+      } else {
+        z_ld_reg8(token, op1, op2, opcode);
+      }
 
     } else if (z_typecmp(op1, Z_TOKTYPE_REGISTER_16)) {
       if (op1->memref) {

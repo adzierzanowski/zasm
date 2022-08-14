@@ -8,11 +8,11 @@ I've already written a Z80 assembler in Python which is available in my
 `zasm` is a 2-pass asm whereas the python one passed the source several times and
 is significantly slower.
 
-**This is an early work in progress.**
+**This is a work in progress.**
 
 ## TODO
 
 * Numeric expressions parser
-* `ds` directive
 * `def` directive
 * `include` directive
+* "linking" to labels in other source

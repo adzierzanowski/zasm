@@ -9,10 +9,12 @@
 #include "util.h"
 #include "structs.h"
 #include "opcodes.h"
+#include "config.h"
 
 struct z_token_t *z_token_new(const char *fname, size_t line, int col, char *value);
 struct z_token_t **tokenize(const char *fname, size_t *tokcnt, struct z_label_t **labels);
 const char *z_toktype_str(enum z_toktype_t type);
+const char *z_toktype_color(enum z_toktype_t type);
 void z_check_type(
   FILE *f,
   const char *fname,

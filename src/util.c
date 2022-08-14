@@ -44,7 +44,7 @@ bool z_strmatch(const char *str, ...) {
   return false;
 }
 
-void z_fail(const char *fname, size_t line, int col, const char *fmt, ...) {
+void z_fail(struct z_token_t *token, const char *fmt, ...) {
   char buf[0x1000] = {0};
 
   va_list args;
@@ -52,7 +52,12 @@ void z_fail(const char *fname, size_t line, int col, const char *fmt, ...) {
   vsprintf(buf, fmt, args);
   va_end(args);
 
-  fprintf(stderr, "\x1b[38;5;1mERROR: %s:%zu:%u %s\x1b[0m", fname, line+1, col+1, buf);
+  if (token) {
+  fprintf(
+    stderr, "\x1b[38;5;1mERROR: %s:%zu:%lu %s\x1b[0m", token->fname, token->line+1, token->col+1 - strlen(token->value), buf);
+  } else {
+    fprintf(stderr, "\x1b[38;5;1mERROR: %s\x1b[0m", buf);
+  }
 }
 
 int z_indexof(char *haystack, char needle) {

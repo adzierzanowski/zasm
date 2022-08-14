@@ -1,20 +1,32 @@
-CFLAGS = -Wall -Wpedantic \
--Wno-gnu-binary-literal \
--DSHOW_EMIT \
--DSHOW_TOKCHARS \
--DSHOW_NEW_TOKENS \
--DDEBUG
+DEBUG = 0
+SRC = src
+BUILD = build
+TARGET = zasm
 
+CFLAGS = -Wall -Wpedantic \
+-Wno-gnu-binary-literal
+
+ifeq ($(DEBUG), 1)
+CFLAGS += -Og -g -DDEBUG
+else
+	CFLAGS += -O3
+endif
+
+OBJS = main.o util.o tokenizer.o opcodes.o emitter.o config.o
 
 .PHONY: all
-all: zasm
+all: $(TARGET) Makefile
 
-zasm: main.o util.o tokenizer.o opcodes.o emitter.o
-	$(CC) $(CFLAGS) $^ -o zasm
+$(TARGET): $(addprefix $(BUILD)/, $(OBJS))
+	$(CC) $(CFLAGS) $^ -o $@
 
-%.o: %.c
+.PHONY: $(SRC)/%.c
+$(SRC)/%.c: $(SRC)/%.h
+
+$(BUILD)/%.o: $(SRC)/%.c
+	@- mkdir -p $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	rm -rf *.o
-	rm zasm
+	- rm -rf $(BUILD)
+	- rm $(TARGET)

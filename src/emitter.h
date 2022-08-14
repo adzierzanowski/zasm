@@ -5,6 +5,8 @@
 
 #include "structs.h"
 #include "util.h"
+#include "config.h"
+#include "tokenizer.h"
 
 struct z_label_t *z_label_get(struct z_label_t *labels, char *key);
 
