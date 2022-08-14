@@ -13,7 +13,6 @@ is significantly slower.
 ## TODO
 
 * Numeric expressions parser
-* All instructions
 * `ds` directive
 * `def` directive
 * `include` directive

@@ -65,29 +65,58 @@ uint8_t *z_emit(struct z_token_t **tokens, size_t tokcnt, size_t *emitsz, struct
       if (z_streq(token->value, "org")) {
         struct z_token_t *org = token->child;
         origin = org->numval;
-      } else if (z_streq(token->value, "db")) {
+
+      } else if (z_streq(token->value, "db") || z_streq(token->value, "dw")) {
         struct z_token_t *ptr = token->child;
 
         while (ptr != NULL) {
           if (ptr->type == Z_TOKTYPE_NUMBER) {
-            uint8_t number = ptr->numval;
-            (*emitsz)++;
-            out = realloc(out, sizeof (uint8_t) * *emitsz);
-            out[*emitsz - 1] = number;
+            uint16_t number = ptr->numval;
+
+            if (z_streq(token->value, "db")) {
+              (*emitsz)++;
+              out = realloc(out, sizeof (uint8_t) * *emitsz);
+              out[*emitsz - 1] = number;
+
+            } else if (z_streq(token->value, "dw")) {
+              (*emitsz) += 2;
+              out = realloc(out, sizeof (uint8_t) * *emitsz);
+              printf("DW %x\n", number);
+              out[*emitsz - 2] = number & 0xff;
+              out[*emitsz - 1] = number >> 8;
+            }
 
           } else if (ptr->type == Z_TOKTYPE_STRING) {
-            (*emitsz) += strlen(ptr->value);
-            out = realloc(out, sizeof (uint8_t) * *emitsz);
+            if (z_streq(token->value, "db")) {
+              (*emitsz) += strlen(ptr->value);
+              out = realloc(out, sizeof (uint8_t) * *emitsz);
 
-            for (int i = 0; i < strlen(ptr->value); i++) {
-              out[*emitsz - strlen(ptr->value) + i] = ptr->value[i];
+              for (int i = 0; i < strlen(ptr->value); i++) {
+                out[*emitsz - strlen(ptr->value) + i] = ptr->value[i];
+              }
+
+            } else if (z_streq(token->value, "dw")) {
+              (*emitsz) += strlen(ptr->value) * 2;
+              out = realloc(out, sizeof (uint8_t) * *emitsz);
+
+              for (int i = 0; i < strlen(ptr->value); i++) {
+                out[*emitsz - strlen(ptr->value) + i * 2] = ptr->value[i] & 0xff;
+                out[*emitsz - strlen(ptr->value) + i * 2 + 1] = ptr->value[i] >> 8;
+              }
             }
 
           } else if (ptr->type == Z_TOKTYPE_CHAR) {
-            (*emitsz)++;
-            out = realloc(out, sizeof (uint8_t *) * *emitsz);
-            out[*emitsz - 1] = ptr->value[0];
+            if (z_streq(token->value, "db")) {
+              (*emitsz)++;
+              out = realloc(out, sizeof (uint8_t *) * *emitsz);
+              out[*emitsz - 1] = ptr->value[0];
 
+            } else if (z_streq(token->value, "dw")) {
+              (*emitsz) += 2;
+              out = realloc(out, sizeof (uint8_t *) * *emitsz);
+              out[*emitsz - 2] = ptr->value[0] & 0xff;
+              out[*emitsz - 1] = ptr->value[0] >> 8;
+            }
           }
 
           ptr = ptr->child;
