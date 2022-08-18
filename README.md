@@ -16,3 +16,4 @@ is significantly slower.
 * `def` directive
 * `include` directive
 * "linking" to labels in other source
+* free allocated memory

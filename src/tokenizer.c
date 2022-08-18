@@ -1,301 +1,178 @@
 #include "tokenizer.h"
 
 
-struct z_token_t **tokenize(const char *fname, size_t *tokcnt, struct z_label_t **labels) {
-  FILE *f = fopen(fname, "r");
-  if (f == NULL) {
-    fprintf(stderr, "Couldn't open '%s'.\n", fname);
-    exit(1);
-  }
+struct z_token_t **tokenize(
+  const char *fname, size_t *tokcnt, struct z_label_t **labels, size_t *bytepos) {
 
-  int codepos = 0;
+  FILE *f = fopen(fname, "r");
 
   struct z_token_t **tokens = NULL;
-  *tokcnt = 0;
-  struct z_token_t *last_token = NULL;
-  struct z_token_t *last_root_token = NULL;
-  *labels = NULL;
 
   char tokbuf[TOKBUFSZ] = {0};
+  int tokbufptr = 0;
+  int line = 0;
   int col = 0;
-  int codecol = 0;
+  *bytepos = 0;
 
-  size_t line = 0;
-  uint16_t origin;
-
-  bool last_char_isspace = false;
+  bool in_comment = false;
   bool in_string = false;
   bool in_char = false;
   bool in_memref = false;
-  bool in_comment = false;
-  uint32_t expected_type = Z_TOKTYPE_ANY;
+  bool opsep = false;
 
-  for (;;) {
-    char c = fgetc(f);
-  #if SHOW_TOKCHARS
-    printf(
-      "c=%c [comment %d] [string %d] [memref %d] [char %d] [tokbuf '%s']\n",
-      c, in_comment, in_string, in_memref, in_char, tokbuf);
-  #endif
+  struct z_token_t *root = NULL;
+  struct z_token_t *operand = NULL;
 
-    codecol++;
+  int c = 0;
+  while (c != EOF) {
+    c = fgetc(f);
+    col++;
 
-    if (in_comment) {
-      if (c == '\n') {
-        line++;
-        codecol = 0;
-        last_char_isspace = true;
-        in_comment = false;
+    struct z_token_t *token = NULL;
+
+
+    if (in_string) {
+      if (c == '"') {
+        if (strlen(tokbuf) > 0) {
+          token = z_token_new(fname, line, col, tokbuf, Z_TOKTYPE_STRING);
+          memset(tokbuf, 0, TOKBUFSZ);
+          tokbufptr = 0;
+        }
+        in_string = false;
+
+      } else {
+        tokbuf[tokbufptr++] = c;
       }
-      continue;
-    }
 
-    if (!in_string && c == '"') {
+    } else if (in_char) {
+      if (c == '\'') {
+        in_char = false;
+
+        if (strlen(tokbuf) > 0) {
+          token = z_token_new(fname, line, col, tokbuf, Z_TOKTYPE_CHAR);
+          token->numval = tokbuf[0];
+          memset(tokbuf, 0, TOKBUFSZ);
+          tokbufptr = 0;
+        }
+
+      } else {
+        tokbuf[tokbufptr++] = c;
+      }
+
+    } else if (in_comment) {
+      //continue;
+
+
+    } else if (c == '"') {
       in_string = true;
+      //continue;
 
-    } else if (!in_char && c == '\'' && !z_streq(tokbuf, "af")) {
-      in_char = true;
+    } else if (c == '\'') {
+      if (z_streq(tokbuf, "af")) {
+        // PASS
 
-    } else if (!in_comment && c == ';') {
+      } else {
+        in_char = true;
+      }
+
+      //continue;
+    } else if (c == '[') {
+      in_memref = true;
+
+    } else if (isalnum(c)) {
+      tokbuf[tokbufptr++] = c;
+
+    } else if (c == ';') {
       in_comment = true;
 
-    } else if (isspace(c) || z_indexof(":,\"[]'", c) > -1) {
-      if (c == '\n') {
-        line++;
-        codecol = 0;
-        in_comment = false;
+    } else if (z_indexof("+-*/()", c) > -1) {
+      if (strlen(tokbuf) > 0) {
+        token = z_token_new(fname, line, col, tokbuf, Z_TOKTYPE_NONE);
       }
 
-      if ((in_string && c != '"') || (in_char && c != '\'')) {
-        tokbuf[col++] = c;
-        continue;
+      char buf[2] = { c, 0 };
+      token = z_token_new(fname, line, col, buf, Z_TOKTYPE_OPERATOR);
+
+    } else if (c == ',') {
+      if (strlen(tokbuf) > 0) {
+        token = z_token_new(fname, line, col, tokbuf, Z_TOKTYPE_NONE);
       }
 
-      if (c == '[') {
-        in_memref = true;
-        continue;
+    } else if (isspace(c) || c == ']') {
+      if (strlen(tokbuf) > 0) {
+        token = z_token_new(fname, line, col, tokbuf, Z_TOKTYPE_NONE);
       }
 
-      if (last_char_isspace && c != '[') {
-        continue;
+    } else if (c == ':') {
+      if (strlen(tokbuf) > 0) {
+        token = z_token_new(fname, line, col, tokbuf, Z_TOKTYPE_LABEL);
       }
+    } else if (c == '$') {
+      tokbuf[tokbufptr++] = c;
+      if (strlen(tokbuf) == 1) {
+        token = z_token_new(fname, line, col, tokbuf, Z_TOKTYPE_IDENTIFIER);
+      }
+    }
 
-      last_char_isspace = true;
-
-      struct z_token_t *token = z_token_new(fname, line, codecol, tokbuf);
-
+    if (token != NULL) {
       if (in_memref) {
         token->memref = true;
       }
+      memset(tokbuf, 0, TOKBUFSZ);
+      tokbufptr = 0;
 
-      if (c == ']' && in_memref) {
-        in_memref = false;
-      }
+      //printf("\x1b[38;5;1mADDING TOKEN %s\x1b[0m\n", token->value);
+      //printf("\x1b[38;5;1m  OPSEP %d\x1b[0m\n", opsep);
 
-      if (c == '"' && in_string) {
-        token->type = Z_TOKTYPE_STRING;
-        z_check_type(f, fname, line, codecol, expected_type, token);
-        expected_type = Z_TOKTYPE_ANY;
-        z_token_link(last_token, token);
-        in_string = false;
-
-      } else if (c == '\'' && in_char) {
-        token->type = Z_TOKTYPE_CHAR;
-        token->numval = (uint8_t) token->value[0];
-        z_check_type(f, fname, line, codecol, expected_type, token);
-        expected_type = Z_TOKTYPE_ANY;
-        z_token_link(last_token, token);
-        in_char = false;
-
-      } else if (c == ':') {
-        token->type = Z_TOKTYPE_LABEL;
-        z_check_type(f, fname, line, codecol, expected_type, token);
-        expected_type = Z_TOKTYPE_ANY;
-        z_parse_root(last_root_token, &codepos, labels);
-        last_root_token = token;
+      if (z_typecmp(token,
+          Z_TOKTYPE_DIRECTIVE | Z_TOKTYPE_INSTRUCTION | Z_TOKTYPE_LABEL)) {
         z_token_add(&tokens, tokcnt, token);
 
-      } else if (z_strmatch(
-          tokbuf,
-          "nop", "rlca", "rrca", "rla", "rra", "daa", "cpl", "scf", "ccf",
-          "halt", "ei", "di", "ldi", "cpi", "ini", "outi", "ldd", "cpd", "ind",
-          "outd", "ldir", "cpir", "inir", "otir", "lddr", "cpdr", "indr", "otdr",
-          "neg", "retn", "reti", "rrd", "rld",
-          NULL)) {
-        token->type = Z_TOKTYPE_INSTRUCTION;
-        z_check_type(f, fname, line, codecol, expected_type, token);
-        expected_type = Z_TOKTYPE_ANY;
-        z_parse_root(last_root_token, &codepos, labels);
-        last_root_token = token;
-        z_token_add(&tokens, tokcnt, token);
+        z_parse_root(root, bytepos, labels);
 
-      } else if (z_strmatch(
-          tokbuf,
-          "ld", "inc", "dec", "ex", "add", "djnz", "jr", "adc", "sub", "sbc",
-          "and", "or", "xor", "cp", "ret", "pop", "push", "rst", "exx", "jp",
-          "call", "out", "in", "im",
-          "rlc", "rrc", "rl", "rr", "sla", "sra", "srl", "bit", "res", "set",
-          NULL)) {
-        token->type = Z_TOKTYPE_INSTRUCTION;
-        z_check_type(f, fname, line, codecol, expected_type, token);
+        root = token;
+      //printf("\x1b[38;5;1m  ROOT\x1b[0m\n");
 
-        if (z_streq(tokbuf, "ld")) {
-          expected_type = Z_TOKTYPE_IDENTIFIER | Z_TOKTYPE_NUMBER | Z_TOKTYPE_REGISTER_8 | Z_TOKTYPE_REGISTER_16;
+      } else if (opsep || !root->children_count) {
+      //printf("\x1b[38;5;1m  OPERAND\x1b[0m\n");
+        z_token_add_child(root, token);
 
-        } else if (z_streq(tokbuf, "inc")) {
-          expected_type = Z_TOKTYPE_REGISTER_8 | Z_TOKTYPE_REGISTER_16;
-
-        } else {
-          expected_type = Z_TOKTYPE_ANY;
-        }
-
-        z_parse_root(last_root_token, &codepos, labels);
-        last_root_token = token;
-        z_token_add(&tokens, tokcnt, token);
-
-      } else if (z_strmatch(
-        tokbuf, "org", "db", "dw", "ds", "include", "def", NULL)) {
-        token->type = Z_TOKTYPE_DIRECTIVE;
-        z_check_type(f, fname, line, codecol, expected_type, token);
-
-        if (z_streq(tokbuf, "org")) {
-          expected_type = Z_TOKTYPE_NUMBER;
-
-        } else if (z_strmatch(tokbuf, "db", "dw", NULL)) {
-          expected_type = Z_TOKTYPE_IDENTIFIER | Z_TOKTYPE_NUMBER | Z_TOKTYPE_STRING | Z_TOKTYPE_CHAR;
-
-        } else if (z_streq(tokbuf, "ds")) {
-          expected_type = Z_TOKTYPE_NUMBER;
-
-        } else if (z_streq(tokbuf, "include")) {
-          expected_type = Z_TOKTYPE_STRING;
-
-        } else if (z_streq(tokbuf, "def")) {
-          expected_type = Z_TOKTYPE_IDENTIFIER;
-
-        } else {
-          expected_type = Z_TOKTYPE_ANY;
-        }
-
-        z_parse_root(last_root_token, &codepos, labels);
-        last_root_token = token;
-        z_token_add(&tokens, tokcnt, token);
-
-      } else if (z_strmatch(tokbuf, "bc", "de", "hl", "sp", "ix", "iy", "af", "af'", NULL)) {
-        token->type = Z_TOKTYPE_REGISTER_16;
-        z_check_type(f, fname, line, codecol, expected_type, token);
-        expected_type = Z_TOKTYPE_ANY;
-        z_token_link(last_token, token);
-
-      } else if (z_streq(tokbuf, "c")) {
-        if (z_strmatch(last_root_token->value, "jr", "ret", "call", "jp", NULL)) {
+        if (z_streq(token->value, "c") &&
+            z_typecmp(token, Z_TOKTYPE_REGISTER_8) &&
+            z_strmatch(root->value, "call", "ret", "jp", "jr", NULL)) {
           token->type = Z_TOKTYPE_CONDITION;
-        } else {
-          token->type = Z_TOKTYPE_REGISTER_8;
         }
 
-        z_check_type(f, fname, line, codecol, expected_type, token);
-        expected_type = Z_TOKTYPE_ANY;
-        z_token_link(last_token, token);
-
-      } else if (z_strmatch(tokbuf, "a", "b", "d", "e", "h", "l", "i", "r", NULL)) {
-        token->type = Z_TOKTYPE_REGISTER_8;
-        z_check_type(f, fname, line, codecol, expected_type, token);
-        expected_type = Z_TOKTYPE_ANY;
-        z_token_link(last_token, token);
-
-      } else if (z_strmatch(tokbuf, "z", "nz", "p", "m", "po", "pe", "c", "nc", NULL)) {
-        token->type = Z_TOKTYPE_CONDITION;
-        z_check_type(f, fname, line, codecol, expected_type, token);
-        expected_type = Z_TOKTYPE_ANY;
-        z_token_link(last_token, token);
-
-      } else if (z_strmatch(tokbuf, "+", "-", "*", "/", "(", ")", NULL)) {
-        token->type = Z_TOKTYPE_OPERATOR;
-        z_check_type(f, fname, line, codecol, expected_type, token);
-        expected_type = Z_TOKTYPE_ANY;
-        z_token_link(last_token, token);
+        operand = token;
+        opsep = false;
 
       } else {
-        char *endptr = NULL;
-        uint32_t num = strtoul(tokbuf, &endptr, 0);
-
-        if ((num == 0 && endptr != tokbuf) || num) {
-          token->type = Z_TOKTYPE_NUMBER;
-          token->numval = num;
-          z_check_type(f, fname, line, codecol, expected_type, token);
-          expected_type = Z_TOKTYPE_ANY;
-          z_token_link(last_token, token);
-
-          if (token->parent->type == Z_TOKTYPE_DIRECTIVE && z_streq(token->parent->value, "org")) {
-            origin = num;
-          }
-
-        } else if (z_streq(tokbuf, "$")) {
-          token->type = Z_TOKTYPE_NUMBER;
-          token->numval = codepos + origin;
-          z_token_link(last_token, token);
-
-        } else {
-          token->type = Z_TOKTYPE_IDENTIFIER;
-          z_check_type(f, fname, line, codecol, expected_type, token);
-          expected_type = Z_TOKTYPE_ANY;
-          z_token_link(last_token, token);
-        }
+      //printf("\x1b[38;5;1m  OPCHILD\x1b[0m\n");
+        z_token_add_child(operand, token);
       }
+    }
 
-#ifdef DEBUG
-      z_dprintf(fname, line, col,
-        "Tokenizer: NEW TOKEN: %s TYPE: %s\n\n",
-        token->value, z_toktype_str(token->type));
-#endif
+    if (c == ',') {
+      opsep = true;
 
-      memset(tokbuf, 0, TOKBUFSZ);
+    } else if (in_memref && c == ']') {
+      in_memref =  false;
+
+    } else if (c == '\n') {
+      line++;
       col = 0;
-      last_token = token;
-
-    } else if (c == ',') {
-      last_char_isspace = true;
-
-    } else {
-      last_char_isspace = false;
-      tokbuf[col++] = c;
-
-      if (in_char && strlen(tokbuf) > 1) {
-        z_fail(NULL, "%s:%d:%d Character has more than one byte: '%s'.\n", fname, line+1, codecol-strlen(tokbuf), tokbuf);
-        exit(1);
-      }
+      in_comment = false;
+      in_memref = false;
+      in_char= false;
     }
 
-    if (c == EOF) {
-      // TODO: make sure this doesn't fail
-      z_parse_root(last_root_token, &codepos, labels);
-
-      z_dprintf(fname, line, codecol, "End of file\n");
-
-      if (f) {
-        fclose(f);
-        f = NULL;
-      }
-
-      if (z_config.verbose) {
-        puts("\x1b[38;5;4mLABELS\x1b[0m");
-        struct z_label_t *ptr = *labels;
-        while (ptr != NULL) {
-          printf("    %s: %hu\n", ptr->key, ptr->value);
-          ptr = ptr->next;
-        }
-        puts("");
-      }
-
-      return tokens;
-    }
+    //char tokbufbuf[0x1000] = {0};
+    //sprintf(tokbufbuf, "'%s'", tokbuf);
+    //printf("c = %c  tokbuf %-20s   com %d   str %d   chr %d   ref %d  opsep %d\n",
+    //    c, tokbufbuf, in_comment, in_string, in_char, in_memref, opsep);
   }
 
-  if (f) {
-    fclose(f);
-    f = NULL;
-  }
+  z_parse_root(root, bytepos, labels);
 
   return tokens;
 }
@@ -314,18 +191,20 @@ const char *z_toktype_str(enum z_toktype_t type) {
     case Z_TOKTYPE_STRING: return "STRING";
     case Z_TOKTYPE_CHAR: return "CHAR";
     case Z_TOKTYPE_OPERATOR: return "OPER";
+    case Z_TOKTYPE_EXPRESSION: return "EXPR";
     case Z_TOKTYPE_ANY: return "(any)";
   }
 }
 
 const char *z_toktype_color(enum z_toktype_t type) {
   switch (type) {
-    case Z_TOKTYPE_NONE: return "(none)";
+    case Z_TOKTYPE_NONE: return "";
     case Z_TOKTYPE_DIRECTIVE: return "\x1b[38;5;92m";
     case Z_TOKTYPE_INSTRUCTION: return "\x1b[38;5;213m";
     case Z_TOKTYPE_IDENTIFIER: return "\x1b[38;5;4m";
     case Z_TOKTYPE_LABEL: return "\x1b[38;5;4m";
     case Z_TOKTYPE_NUMBER: return "\x1b[38;5;202m";
+    case Z_TOKTYPE_EXPRESSION: return "\x1b[38;5;202m";
     case Z_TOKTYPE_REGISTER_8: return "\x1b[38;5;220m";
     case Z_TOKTYPE_REGISTER_16: return "\x1b[38;5;220m";
     case Z_TOKTYPE_CONDITION: return "\x1b[38;5;207m";
@@ -336,45 +215,59 @@ const char *z_toktype_color(enum z_toktype_t type) {
   }
 }
 
-struct z_token_t *z_token_new(const char *fname, size_t line, int col, char *value) {
+struct z_token_t *z_token_new(
+    const char *fname, size_t line, int col, char *value, int type) {
   struct z_token_t *token = malloc(sizeof (struct z_token_t));
 
   strcpy(token->value, value);
+  token->type = type;
   token->memref = false;
   token->fname = fname;
   token->line = line;
-  token->col = col;
-  token->child = NULL;
+  token->col = col - strlen(value) - 1;
+  token->children = NULL;
   token->parent = NULL;
   token->numval = 0;
   token->opcode = NULL;
   token->label_offset = 0;
+  token->numop = NULL;
 
-  return token;
-}
+  if (token->type == Z_TOKTYPE_NONE) {
+    if (z_strmatch(value, "bc", "de", "hl", "sp", "ix", "iy", "af", NULL)) {
+      token->type = Z_TOKTYPE_REGISTER_16;
 
-void z_check_type(
-    FILE *f, const char *fname, size_t line, int col, uint32_t expected, struct z_token_t *token) {
+    } else if (
+        z_strmatch(value, "a", "b", "c", "d", "e", "h", "l", "i", "r", NULL)) {
+      token->type = Z_TOKTYPE_REGISTER_8;
 
+    } else if (z_strmatch(value, "z", "nz", "c", "nc", "po", "pe", "p", "m", NULL)) {
+      token->type = Z_TOKTYPE_CONDITION;
 
-  if (!(expected & token->type)) {
-    z_fail(
-      token,
-      "Unexpected token: '%s' (%s). Expected one of:\n",
-      token->value, z_toktype_str(token->type), expected);
-    for (int64_t i = 1; i < Z_TOKTYPE_ANY; i *= 2) {
-      if (i & expected) {
-        fprintf(stderr, "  - %s\n", z_toktype_str(i));
-      }
+    } else if (z_strmatch(value,
+        "ld", "push", "pop", "ex", "exx", "ldi", "ldir", "ldd", "lddr", "cpi",
+        "cpir", "cpd", "cpdr", "add", "adc", "sub", "sbc", "and", "or", "xor",
+        "cp", "inc", "dec", "daa", "cpl", "neg", "ccf", "scf", "nop", "halt",
+        "di", "ei", "im", "rlca", "rla", "rrca", "rra", "rlc", "rl", "rrc",
+        "rr", "sla", "sra", "srl", "rld", "rrd", "bit", "set", "res", "jp",
+        "djnz", "call", "ret", "reti", "retn", "rst", "in", "ini", "inir",
+        "ind", "indr", "out", "outi", "otir", "outd", "otdr", "jr", NULL)) {
+      token->type = Z_TOKTYPE_INSTRUCTION;
+
+    } else if (
+        z_strmatch(value, "ds", "dw", "db", "def", "include", "org", NULL)) {
+      token->type = Z_TOKTYPE_DIRECTIVE;
+
+    } else if (isdigit(value[0])) {
+      char *endptr = NULL;
+      int numval = strtoul(value, &endptr, 0);
+      token->type = Z_TOKTYPE_NUMBER;
+      token->numval = numval;
+
+    } else {
+      token->type = Z_TOKTYPE_IDENTIFIER;
     }
-
-    if (f) {
-      fclose(f);
-      f = NULL;
-    }
-
-    exit(1);
   }
+  return token;
 }
 
 void z_token_add(struct z_token_t ***tokens, size_t *tokcnt, struct z_token_t *token) {
@@ -383,61 +276,12 @@ void z_token_add(struct z_token_t ***tokens, size_t *tokcnt, struct z_token_t *t
   (*tokens)[*tokcnt - 1] = token;
 }
 
-void z_parse_root(struct z_token_t *token, int *codepos, struct z_label_t **labels) {
-  if (!token) return;
-
-  if (token->type == Z_TOKTYPE_INSTRUCTION) {
-    struct z_opcode_t *opcode = z_opcode_match(token);
-    token->opcode = opcode;
-    *codepos += opcode->size;
-
-  } else if (token->type == Z_TOKTYPE_LABEL) {
-    struct z_label_t *label = z_label_new(token->value, *codepos);
-    z_label_add(labels, label);
-
-  } else if (token->type == Z_TOKTYPE_DIRECTIVE) {
-    struct z_token_t *ptr = token->child;
-
-    if (z_streq(token->value, "ds")) {
-      struct z_token_t *size = token->child;
-      if (!size || !z_typecmp(size, Z_TOKTYPE_NUMBER)) {
-        z_fail(token, "ds directive requires at least one numeric argument.\n");
-        exit(1);
-      }
-      (*codepos) += size->numval;
-
-    } else {
-      while (ptr != NULL) {
-        if (ptr->type == Z_TOKTYPE_CHAR) {
-          (*codepos)++;
-
-        } else if (ptr->type == Z_TOKTYPE_STRING) {
-          (*codepos) += strlen(ptr->value);
-
-        } else if (ptr->type == Z_TOKTYPE_NUMBER) {
-          if (z_streq(token->value, "db")) {
-            (*codepos)++;
-
-          } else if (z_streq(token->value, "dw")) {
-            (*codepos) += 2;
-          }
-        }
-        ptr = ptr->child;
-      }
-    }
-  }
+void z_token_add_child(struct z_token_t *parent, struct z_token_t *child) {
+  parent->children_count++;
+  parent->children = realloc(
+    parent->children, sizeof (struct z_token_t *) * parent->children_count);
+  parent->children[parent->children_count - 1] = child;
 }
-
-void z_token_link(struct z_token_t *parent, struct z_token_t *child) {
-  if (!parent) {
-    z_fail(child, "No parent token to link to.\n");
-    exit(1);
-  }
-
-  parent->child = child;
-  child->parent = parent;
-}
-
 struct z_label_t *z_label_new(char *key, uint16_t value) {
   struct z_label_t *label = malloc(sizeof (struct z_label_t));
   strcpy(label->key, key);
@@ -461,4 +305,82 @@ void z_label_add(struct z_label_t **labels, struct z_label_t *label) {
 
 bool z_typecmp(struct z_token_t *token, int types) {
   return (token->type & types);
+}
+
+void z_parse_root(
+    struct z_token_t *token, size_t *codepos, struct z_label_t **labels) {
+  if (!token) return;
+
+  z_expr_cvt(token);
+
+  if (z_typecmp(token, Z_TOKTYPE_INSTRUCTION)) {
+    struct z_opcode_t *opcode = z_opcode_match(token);
+    token->opcode = opcode;
+    (*codepos) += opcode->size;
+
+  } else if (z_typecmp(token, Z_TOKTYPE_LABEL)) {
+    struct z_label_t *label = z_label_new(token->value, *codepos);
+    z_label_add(labels, label);
+
+  } else if (z_typecmp(token, Z_TOKTYPE_DIRECTIVE)) {
+    if (z_streq(token->value, "db")) {
+      for (int i = 0; i < token->children_count; i++) {
+        struct z_token_t *op = token->children[i];
+
+        if (z_typecmp(op, Z_TOKTYPE_NUMERIC)) {
+          (*codepos)++;
+
+        } else if (z_typecmp(op, Z_TOKTYPE_STRING)) {
+          (*codepos) += strlen(op->value);
+
+        } else {
+          z_fail(op, "Wrong operand type in the 'db' directive: %s.\n", z_toktype_str(op->type));
+          exit(1);
+        }
+      }
+
+    } else if (z_streq(token->value, "dw")) {
+      for (int i = 0; i < token->children_count; i++) {
+        struct z_token_t *op = token->children[i];
+
+        if (z_typecmp(op, Z_TOKTYPE_NUMERIC)) {
+          (*codepos) += 2;
+
+        } else if (z_typecmp(op, Z_TOKTYPE_STRING)) {
+          (*codepos) += 2 * strlen(op->value);
+
+        } else {
+          z_fail(op, "Wrong operand type in the 'db' directive: %s.\n", z_toktype_str(op->type));
+          exit(1);
+        }
+      }
+
+    } else if (z_streq(token->value, "ds")) {
+      if (token->children_count < 1 || token->children_count > 2) {
+        z_fail(
+          token,
+          "'ds' directive requires 1-2 operand(s) but %d were given.\n",
+          token->children_count);
+        exit(1);
+      }
+
+      struct z_token_t *sizetok = z_get_child(token, 0);
+
+      if (!z_typecmp(sizetok, Z_TOKTYPE_NUMERIC)) {
+        z_fail(sizetok, "The first operand of the 'ds' directive has to be a numeric value.\n");
+        exit(1);
+      }
+
+      (*codepos) += sizetok->numval;
+    }
+  }
+}
+
+struct z_token_t *z_get_child(struct z_token_t *token, int child_index) {
+  if (child_index >= token->children_count) {
+    z_fail(token, "Couldn't retrieve child #%d of the '%s' token.\n", child_index, token->value);
+    exit(1);
+  }
+
+  return token->children[child_index];
 }

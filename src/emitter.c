@@ -15,137 +15,98 @@ struct z_label_t *z_label_get(struct z_label_t *labels, char *key) {
   return NULL;
 }
 
-uint8_t *z_emit(struct z_token_t **tokens, size_t tokcnt, size_t *emitsz, struct z_label_t *labels) {
-  uint8_t *out = NULL;
-  *emitsz = 0;
-  uint16_t origin = 0;
+uint8_t *z_emit(struct z_token_t **tokens, size_t tokcnt, size_t *emitsz, struct z_label_t *labels, size_t bytepos) {
+  uint8_t *out = calloc(bytepos, sizeof (uint8_t));
+
+  *emitsz = bytepos;
+
+  int emitptr = 0;
+
 
   for (int i = 0; i < tokcnt; i++) {
     struct z_token_t *token = tokens[i];
 
-    if (token->type == Z_TOKTYPE_INSTRUCTION) {
-      if (token->label_offset) {
+    if (z_typecmp(token, Z_TOKTYPE_INSTRUCTION)) {
+      if (token->opcode) {
+        struct z_opcode_t *opcode = token->opcode;
 
-        struct z_token_t *ptr = token->child;
-        struct z_token_t *lblptr = NULL;
-        while (ptr != NULL) {
-          if (ptr->type == Z_TOKTYPE_IDENTIFIER) {
-            lblptr = ptr;
-            break;
+        if (opcode->size > 0) {
+          for (int j = 0; j < opcode->size; j++) {
+            out[emitptr++] = opcode->bytes[j];
           }
-          ptr = ptr->child;
+
+          if (token->label_offset) {
+            int oplen = opcode->size - token->label_offset;
+            int opstart = emitptr - opcode->size + token->label_offset;
+            struct z_token_t *operand = token->numop;
+
+            z_expr_eval(operand, labels);
+
+            if (oplen == 1 || opcode->bytes[1] == 0xcb) {
+              if (z_strmatch(token->value, "jr", "djnz", NULL)) {
+                out[opstart] = operand->numval - 2;
+
+              } else {
+                out[opstart] = operand->numval;
+              }
+
+            } else if (oplen ==  2) {
+              out[opstart] = operand->numval & 0xff;
+              out[opstart + 1] = operand->numval >> 8;
+            }
+          }
         }
-
-        if (!ptr) {
-          z_fail(token, "Couldn't find label token.\n");
-          exit(1);
-        }
-
-        struct z_label_t *label = z_label_get(labels, lblptr->value);
-        if (!label) {
-          z_fail(token, "Couldn't resolve label '%s'.\n", lblptr->value);
-          exit(1);
-        }
-
-        uint16_t lblval = label->value + origin;
-
-        token->opcode->bytes[token->label_offset] = lblval & 0xff;
-        token->opcode->bytes[token->label_offset+1] = lblval >> 8;
       }
 
+    } else if (z_typecmp(token, Z_TOKTYPE_DIRECTIVE)) {
+      if (z_streq(token->value, "db")) {
+        for (int i = 0; i < token->children_count; i++) {
+          struct z_token_t *op = token->children[i];
 
-      (*emitsz) += token->opcode->size;
-      out = realloc(out, sizeof (uint8_t) * *emitsz);
-      for (int i = 0; i < token->opcode->size; i++) {
-        out[*emitsz - token->opcode->size + i] = token->opcode->bytes[i];
-      }
+          if (z_typecmp(op, Z_TOKTYPE_NUMERIC)) {
+            out[emitptr++] = op->numval;
 
+          } else if (z_typecmp(op, Z_TOKTYPE_STRING)) {
+            for (int j = 0; j < strlen(op->value); j++) {
+              out[emitptr++] = op->value[j];
+            }
+          } else {
+            z_fail(op, "Bad 'db' operand.\n");
+            exit(1);
+          }
+        }
 
-    } else if (token->type == Z_TOKTYPE_DIRECTIVE) {
-      if (z_streq(token->value, "org")) {
-        struct z_token_t *org = token->child;
-        origin = org->numval;
+      } else if (z_streq(token->value, "dw")) {
+        for (int i = 0; i < token->children_count; i++) {
+          struct z_token_t *op = token->children[i];
 
-      } else if (z_streq(token->value, "ds")) {
-        struct z_token_t *size = token->child;
-        int fillsize = size->numval;
-        (*emitsz) += fillsize;
+          if (z_typecmp(op, Z_TOKTYPE_NUMERIC)) {
+            out[emitptr++] = op->numval & 0xff;
+            out[emitptr++] = op->numval >> 8;
 
-        struct z_token_t *filler = size->child;
-        uint8_t fillval = 0;
-
-        if (filler) {
-          if (z_typecmp(filler, Z_TOKTYPE_CHAR | Z_TOKTYPE_NUMBER)) {
-            fillval = filler->numval;
+          } else if (z_typecmp(op, Z_TOKTYPE_STRING)) {
+            for (int j = 0; j < strlen(op->value); j++) {
+              out[emitptr++] = op->value[j] & 0xff;
+              out[emitptr++] = op->value[j] >> 8;
+            }
 
           } else {
-            z_fail(filler,
-              "Fill value in the ds directive has to be a char or a number.\n");
+            z_fail(op, "Bad 'dw' operand.\n");
+            exit(1);
           }
         }
 
-        out = realloc(out, sizeof (uint8_t) * *emitsz);
-        for (int i = 0; i < fillsize; i++) {
-          out[*emitsz - fillsize + i] = fillval;
+      } else if (z_streq(token->value, "ds")) {
+        struct z_token_t *sizeop = z_get_child(token, 0);
+
+        uint8_t emitval = 0;
+        if (token->children_count == 2) {
+          struct z_token_t *emitop = z_get_child(token, 1);
+          emitval = emitop->numval;
         }
 
-      } else if (z_streq(token->value, "db") || z_streq(token->value, "dw")) {
-        struct z_token_t *ptr = token->child;
-
-        while (ptr != NULL) {
-          if (ptr->type == Z_TOKTYPE_NUMBER) {
-            uint16_t number = ptr->numval;
-
-            if (z_streq(token->value, "db")) {
-              (*emitsz)++;
-              out = realloc(out, sizeof (uint8_t) * *emitsz);
-              out[*emitsz - 1] = number;
-
-            } else if (z_streq(token->value, "dw")) {
-              (*emitsz) += 2;
-              out = realloc(out, sizeof (uint8_t) * *emitsz);
-              out[*emitsz - 2] = number & 0xff;
-              out[*emitsz - 1] = number >> 8;
-            }
-
-          } else if (ptr->type == Z_TOKTYPE_STRING) {
-            if (z_streq(token->value, "db")) {
-              (*emitsz) += strlen(ptr->value);
-              out = realloc(out, sizeof (uint8_t) * *emitsz);
-
-              for (int i = 0; i < strlen(ptr->value); i++) {
-                out[*emitsz - strlen(ptr->value) + i] = ptr->value[i];
-              }
-
-            } else if (z_streq(token->value, "dw")) {
-              z_fail(ptr, "Can't use dw with strings \n");
-              exit(1);
-                /*
-              (*emitsz) += strlen(ptr->value) * 2;
-              out = realloc(out, sizeof (uint8_t) * *emitsz);
-
-              for (int i = 0; i < strlen(ptr->value); i++) {
-                out[*emitsz - strlen(ptr->value) + i * 2] = ptr->value[i] & 0xff;
-                out[*emitsz - strlen(ptr->value) + i * 2 + 1] = ptr->value[i] >> 8;
-              }
-              */
-            }
-
-          } else if (ptr->type == Z_TOKTYPE_CHAR) {
-            if (z_streq(token->value, "db")) {
-              (*emitsz)++;
-              out = realloc(out, sizeof (uint8_t *) * *emitsz);
-              out[*emitsz - 1] = ptr->value[0];
-
-            } else if (z_streq(token->value, "dw")) {
-              (*emitsz) += 2;
-              out = realloc(out, sizeof (uint8_t *) * *emitsz);
-              out[*emitsz - 2] = ptr->value[0] & 0xff;
-              out[*emitsz - 1] = ptr->value[0] >> 8;
-            }
-          }
-
-          ptr = ptr->child;
+        for (int i = 0; i < sizeop->numval; i++) {
+          out[emitptr++] = emitval;
         }
       }
     }

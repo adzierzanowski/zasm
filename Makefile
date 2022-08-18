@@ -1,10 +1,9 @@
-DEBUG = 0
+DEBUG = 1
 SRC = src
 BUILD = build
 TARGET = zasm
 
-CFLAGS = -Wall -Wpedantic \
--Wno-gnu-binary-literal
+CFLAGS = -Wall -Wpedantic
 
 ifeq ($(DEBUG), 1)
 CFLAGS += -Og -g -DDEBUG
@@ -12,10 +11,10 @@ else
 	CFLAGS += -O3
 endif
 
-OBJS = main.o util.o tokenizer.o opcodes.o emitter.o config.o
+OBJS = main.o util.o tokenizer.o emitter.o config.o expressions.o opcodes.o
 
 .PHONY: all
-all: $(TARGET) Makefile
+all: $(TARGET)
 
 $(TARGET): $(addprefix $(BUILD)/, $(OBJS))
 	$(CC) $(CFLAGS) $^ -o $@
@@ -23,7 +22,7 @@ $(TARGET): $(addprefix $(BUILD)/, $(OBJS))
 .PHONY: $(SRC)/%.c
 $(SRC)/%.c: $(SRC)/%.h
 
-$(BUILD)/%.o: $(SRC)/%.c
+$(BUILD)/%.o: $(SRC)/%.c Makefile
 	@- mkdir -p $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 

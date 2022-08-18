@@ -54,7 +54,8 @@ void z_fail(struct z_token_t *token, const char *fmt, ...) {
 
   if (token) {
   fprintf(
-    stderr, "\x1b[38;5;1mERROR: %s:%zu:%lu %s\x1b[0m", token->fname, token->line+1, token->col+1 - strlen(token->value), buf);
+    stderr, "\x1b[38;5;1mERROR: %s:%d:%d %s\x1b[0m",
+    token->fname, token->line+1, token->col+1/* - strlen(token->value)*/, buf);
   } else {
     fprintf(stderr, "\x1b[38;5;1mERROR: %s\x1b[0m", buf);
   }
