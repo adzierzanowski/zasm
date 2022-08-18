@@ -24,5 +24,6 @@ void z_label_add(struct z_label_t **labels, struct z_label_t *label);
 bool z_typecmp(struct z_token_t *token, int types);
 void z_parse_root( struct z_token_t *token, size_t *codepos, struct z_label_t **labels);
 struct z_token_t *z_get_child(struct z_token_t *token, int child_index);
+struct z_label_t *z_label_get(struct z_label_t *labels, char *key);
 
 #endif

@@ -85,7 +85,7 @@ struct z_token_t **tokenize(
     } else if (c == ';') {
       in_comment = true;
 
-    } else if (z_indexof("+-*/()", c) > -1) {
+    } else if (z_indexof("+-*/()~^&|%", c) > -1) {
       if (strlen(tokbuf) > 0) {
         token = z_token_new(fname, line, col, tokbuf, Z_TOKTYPE_NONE);
       }
@@ -110,7 +110,8 @@ struct z_token_t **tokenize(
     } else if (c == '$') {
       tokbuf[tokbufptr++] = c;
       if (strlen(tokbuf) == 1) {
-        token = z_token_new(fname, line, col, tokbuf, Z_TOKTYPE_IDENTIFIER);
+        token = z_token_new(fname, line, col, tokbuf, Z_TOKTYPE_NUMBER);
+        token->numval = *bytepos;
       }
     }
 
@@ -217,7 +218,7 @@ const char *z_toktype_color(enum z_toktype_t type) {
 
 struct z_token_t *z_token_new(
     const char *fname, size_t line, int col, char *value, int type) {
-  struct z_token_t *token = malloc(sizeof (struct z_token_t));
+  struct z_token_t *token = calloc(1, sizeof (struct z_token_t));
 
   strcpy(token->value, value);
   token->type = type;
@@ -225,12 +226,7 @@ struct z_token_t *z_token_new(
   token->fname = fname;
   token->line = line;
   token->col = col - strlen(value) - 1;
-  token->children = NULL;
-  token->parent = NULL;
-  token->numval = 0;
-  token->opcode = NULL;
-  token->label_offset = 0;
-  token->numop = NULL;
+  token->left_associative = true;
 
   if (token->type == Z_TOKTYPE_NONE) {
     if (z_strmatch(value, "bc", "de", "hl", "sp", "ix", "iy", "af", NULL)) {
@@ -266,7 +262,37 @@ struct z_token_t *z_token_new(
     } else {
       token->type = Z_TOKTYPE_IDENTIFIER;
     }
+
+  } else if (token->type == Z_TOKTYPE_OPERATOR) {
+    switch (token->value[0]) {
+      case '(':
+      case ')':
+        token->precedence = 1;
+        break;
+      case '~':
+        token->precedence = 2;
+        break;
+      case '*':
+      case '/':
+      case '%':
+        token->precedence = 3;
+        break;
+      case '+':
+      case '-':
+        token->precedence = 4;
+        break;
+      case '&':
+        token->precedence = 5;
+        break;
+      case '^':
+        token->precedence = 6;
+        break;
+      case '|':
+        token->precedence = 7;
+        break;
+    }
   }
+
   return token;
 }
 
@@ -383,4 +409,18 @@ struct z_token_t *z_get_child(struct z_token_t *token, int child_index) {
   }
 
   return token->children[child_index];
+}
+
+struct z_label_t *z_label_get(struct z_label_t *labels, char *key) {
+  struct z_label_t *ptr = labels;
+
+  while (ptr != NULL) {
+    if (z_streq(ptr->key, key)) {
+      return ptr;
+    }
+
+    ptr = ptr->next;
+  }
+
+  return NULL;
 }

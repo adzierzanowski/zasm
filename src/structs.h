@@ -27,19 +27,21 @@ enum z_toktype_t {
 #define Z_TOKTYPE_NUMERIC (Z_TOKTYPE_EXPRESSION | Z_TOKTYPE_IDENTIFIER | Z_TOKTYPE_NUMBER | Z_TOKTYPE_CHAR)
 
 struct z_token_t {
-  char value[BUFSZ];
-  const char *fname;
-  size_t children_count;
-  struct z_token_t **children;
-  struct z_token_t *parent;
-  struct z_opcode_t *opcode;
-  int numval;
-  int line;
-  enum z_toktype_t type;
-  bool memref;
-  int col;
-  int label_offset;
-  struct z_token_t *numop;
+  char value[BUFSZ];            // Raw string value of the token
+  const char *fname;            // Source filename
+  size_t children_count;        // Number of children
+  struct z_token_t **children;  // Child tokens array
+  struct z_token_t *parent;     // I think it's unused, TODO: make sure and delete
+  struct z_opcode_t *opcode;    // Used in instruction tokens to specify emitted values
+  int numval;                   // Used in numerical tokens to specify numerical value
+  int line;                     // Source code line
+  enum z_toktype_t type;        // Type of the token
+  bool memref;                  // Was it in memory reference brackets? ("[", "]")
+  int col;                      // Source code column
+  int label_offset;             // Used in emitter to fill in the numerical value in the opcode
+  struct z_token_t *numop;      // Opcode to be used as a source when filling in the value
+  int precedence;               // Used in operator tokens
+  int left_associative;         // Used in operator tokens
 };
 
 struct z_label_t {

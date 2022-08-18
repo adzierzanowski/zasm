@@ -46,8 +46,40 @@ void z_expr_cvt(struct z_token_t *token) {
   }
 }
 
-void z_expr_eval(struct z_token_t *token, struct z_label_t *labels) {
+void z_expr_eval(struct z_token_t *token, struct z_label_t *labels, uint16_t origin) {
   if (z_typecmp(token, Z_TOKTYPE_EXPRESSION)) {
-    token->numval = 0xff;
+    struct z_token_t *outq[TOKBUFSZ] = {0};
+    struct z_token_t *opstack[TOKBUFSZ] = {0};
+    int qptr = 0;
+    int sptr = 0;
+
+    for (int i = 0; i < token->children_count; i++) {
+      struct z_token_t *tok = z_get_child(token, i);
+
+      if (z_typecmp(tok, Z_TOKTYPE_CHAR | Z_TOKTYPE_NUMBER)) {
+        outq[qptr++] = tok;
+
+      } else if (z_typecmp(tok, Z_TOKTYPE_IDENTIFIER)) {
+        struct z_label_t *label = z_label_get(labels, tok->value);
+
+        if (label) {
+          tok->numval = label->value;
+          outq[qptr++] = tok;
+
+        } else {
+          z_fail(tok, "Couldn't retrieve label: '%s'.\n", tok->value);
+          exit(1);
+        }
+
+      } else if (z_typecmp(tok, Z_TOKTYPE_OPERATOR)) {
+        // TODO: implement shunting yard
+
+      } else {
+        z_fail(tok, "Unexpected token type in expression: %s.\n", z_toktype_str(tok->type));
+        exit(1);
+      }
+    }
+
+    token->numval = 0x8000 + origin;
   }
 }

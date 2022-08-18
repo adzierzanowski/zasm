@@ -1,19 +1,6 @@
 #include "emitter.h"
 
 
-struct z_label_t *z_label_get(struct z_label_t *labels, char *key) {
-  struct z_label_t *ptr = labels;
-
-  while (ptr != NULL) {
-    if (z_streq(ptr->key, key)) {
-      return ptr;
-    }
-
-    ptr = ptr->next;
-  }
-
-  return NULL;
-}
 
 uint8_t *z_emit(struct z_token_t **tokens, size_t tokcnt, size_t *emitsz, struct z_label_t *labels, size_t bytepos) {
   uint8_t *out = calloc(bytepos, sizeof (uint8_t));
@@ -21,7 +8,7 @@ uint8_t *z_emit(struct z_token_t **tokens, size_t tokcnt, size_t *emitsz, struct
   *emitsz = bytepos;
 
   int emitptr = 0;
-
+  uint16_t origin = 0;
 
   for (int i = 0; i < tokcnt; i++) {
     struct z_token_t *token = tokens[i];
@@ -40,7 +27,18 @@ uint8_t *z_emit(struct z_token_t **tokens, size_t tokcnt, size_t *emitsz, struct
             int opstart = emitptr - opcode->size + token->label_offset;
             struct z_token_t *operand = token->numop;
 
-            z_expr_eval(operand, labels);
+            if (z_typecmp(operand, Z_TOKTYPE_EXPRESSION)) {
+              z_expr_eval(operand, labels, origin);
+
+            } else if (z_typecmp(operand, Z_TOKTYPE_IDENTIFIER)) {
+              struct z_label_t *label = z_label_get(labels, operand->value);
+              if (label) {
+                operand->numval = origin + label->value;
+              } else {
+                z_fail(operand, "Couldn't resolve label: '%s'.\n", operand->value);
+                exit(1);
+              }
+            }
 
             if (oplen == 1 || opcode->bytes[1] == 0xcb) {
               if (z_strmatch(token->value, "jr", "djnz", NULL)) {
@@ -59,7 +57,23 @@ uint8_t *z_emit(struct z_token_t **tokens, size_t tokcnt, size_t *emitsz, struct
       }
 
     } else if (z_typecmp(token, Z_TOKTYPE_DIRECTIVE)) {
-      if (z_streq(token->value, "db")) {
+      if (z_streq(token->value, "org")) {
+        if (token->children_count != 1) {
+          z_fail(token, "'org' directive requires an operand.\n");
+          exit(1);
+        }
+
+        struct z_token_t *op = z_get_child(token, 0);
+
+        if (z_typecmp(op, Z_TOKTYPE_NUMBER)) {
+          origin = op->numval & 0xffff;
+
+        } else {
+          z_fail(op, "'org' directive operand should be a number, got %s instead.\n", z_toktype_str(op->type));
+          exit(1);
+        }
+
+      } else if (z_streq(token->value, "db")) {
         for (int i = 0; i < token->children_count; i++) {
           struct z_token_t *op = token->children[i];
 
