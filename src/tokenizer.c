@@ -16,7 +16,6 @@ struct z_token_t **tokenize(
   int tokbufptr = 0;
   int line = 0;
   int col = 0;
-  *bytepos = 0;
 
   bool in_comment = false;
   bool in_string = false;
@@ -134,7 +133,7 @@ struct z_token_t **tokenize(
           Z_TOKTYPE_DIRECTIVE | Z_TOKTYPE_INSTRUCTION | Z_TOKTYPE_LABEL)) {
         z_token_add(&tokens, tokcnt, token);
 
-        z_parse_root(root, bytepos, labels, defs);
+        z_parse_root(&tokens, root, bytepos, labels, defs, tokcnt);
 
         root = token;
       //printf("\x1b[38;5;1m  ROOT\x1b[0m\n");
@@ -178,7 +177,7 @@ struct z_token_t **tokenize(
     //    c, tokbufbuf, in_comment, in_string, in_char, in_memref, opsep);
   }
 
-  z_parse_root(root, bytepos, labels, defs);
+  z_parse_root(&tokens, root, bytepos, labels, defs, tokcnt);
 
   return tokens;
 }
@@ -339,7 +338,12 @@ bool z_typecmp(struct z_token_t *token, int types) {
 }
 
 void z_parse_root(
-    struct z_token_t *token, size_t *codepos, struct z_label_t **labels, struct z_def_t **defs) {
+    struct z_token_t ***tokens,
+    struct z_token_t *token,
+    size_t *codepos,
+    struct z_label_t **labels,
+    struct z_def_t **defs,
+    size_t *tokcnt) {
   if (!token) return;
 
   z_expr_cvt(token);
@@ -419,13 +423,23 @@ void z_parse_root(
       }
 
       struct z_def_t *def = z_def_new(keytok->value, valtok);
-      printf("Adding def: %s\n", keytok->value);
       z_def_add(defs, def);
 
     } else if (z_streq(token->value, "include")) {
-      // TODO:
-      z_fail(token, "Includes are not implemented yet.\n");
-      exit(1);
+      if (token->children_count != 1) {
+        z_fail(token, "'include' directive requires exactly one operand.\n");
+        exit(1);
+      }
+
+      struct z_token_t *fname_token = z_get_child(token, 0);
+      // TODO: resolve file path
+      size_t new_tokcnt = 0;
+      size_t final_tokcnt = 0;
+      struct z_token_t **new_tokens = tokenize(
+        fname_token->value, &new_tokcnt, labels, defs, codepos);
+
+      *tokens = z_tokens_merge(*tokens, new_tokens, *tokcnt, new_tokcnt, &final_tokcnt);
+      *tokcnt = final_tokcnt;
     }
   }
 }
@@ -477,12 +491,9 @@ void z_def_add(struct z_def_t **defs, struct z_def_t *def) {
 
 struct z_def_t *z_def_get(struct z_def_t *defs, char *key) {
   struct z_def_t *ptr = defs;
-  printf("Searching for definition of %s.\n", key);
 
   while (ptr != NULL){
-    printf("  Trying %s...\n", ptr->key);
     if (z_streq(ptr->key, key)) {
-      printf("    It's a match!\n");
       return ptr;
     }
 
@@ -490,4 +501,21 @@ struct z_def_t *z_def_get(struct z_def_t *defs, char *key) {
   }
 
   return NULL;
+}
+
+struct z_token_t **z_tokens_merge(
+    struct z_token_t **tokens1,
+    struct z_token_t **tokens2,
+    size_t tokcnt1,
+    size_t tokcnt2,
+    size_t *tokcnt_out) {
+  *tokcnt_out = tokcnt1 + tokcnt2;
+  struct z_token_t **out = realloc(tokens1, *tokcnt_out * sizeof (struct z_token_t *));
+
+  for (int i = 0; i < tokcnt2; i++) {
+    out[i+tokcnt1] = tokens2[i];
+  }
+
+
+  return out;
 }

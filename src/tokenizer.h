@@ -31,17 +31,20 @@ void z_label_add(struct z_label_t **labels, struct z_label_t *label);
 void z_def_add(struct z_def_t **defs, struct z_def_t *def);
 bool z_typecmp(struct z_token_t *token, int types);
 void z_parse_root(
+  struct z_token_t ***tokens,
   struct z_token_t *token,
   size_t *codepos,
   struct z_label_t **labels,
-  struct z_def_t **defs);
+  struct z_def_t **defs,
+  size_t *tokcnt);
 struct z_token_t *z_get_child(struct z_token_t *token, int child_index);
 struct z_label_t *z_label_get(struct z_label_t *labels, char *key);
 struct z_def_t *z_def_get(struct z_def_t *defs, char *key);
 struct z_token_t **z_tokens_merge(
   struct z_token_t **tokens1,
   struct z_token_t **tokens2,
-  int *tokcnt1,
-  int *tokcnt2);
+  size_t tokcnt1,
+  size_t tokcnt2,
+  size_t *tokcnt_out);
 
 #endif

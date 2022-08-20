@@ -12,8 +12,6 @@ is significantly slower.
 
 ## TODO
 
-* Numeric expressions parser
-* `def` directive
-* `include` directive
+* Make defines usable in directives
 * "linking" to labels in other source
 * free allocated memory

@@ -6,7 +6,7 @@ TARGET = zasm
 CFLAGS = -Wall -Wpedantic
 
 ifeq ($(DEBUG), 1)
-CFLAGS += -Og -g -DDEBUG
+CFLAGS += -O0 -g -DDEBUG
 else
 	CFLAGS += -O3
 endif
