@@ -8,8 +8,6 @@
 #include "config.h"
 #include "tokenizer.h"
 
-struct z_label_t *z_label_get(struct z_label_t *labels, char *key);
-
 uint8_t *z_emit(
   struct z_token_t **tokens,
   size_t tokcnt,

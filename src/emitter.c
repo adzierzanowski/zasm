@@ -1,8 +1,12 @@
 #include "emitter.h"
 
 
-
-uint8_t *z_emit(struct z_token_t **tokens, size_t tokcnt, size_t *emitsz, struct z_label_t *labels, size_t bytepos) {
+uint8_t *z_emit(
+    struct z_token_t **tokens,
+    size_t tokcnt,
+    size_t *emitsz,
+    struct z_label_t *labels,
+    size_t bytepos) {
   uint8_t *out = calloc(bytepos, sizeof (uint8_t));
 
   *emitsz = bytepos;
@@ -36,7 +40,9 @@ uint8_t *z_emit(struct z_token_t **tokens, size_t tokcnt, size_t *emitsz, struct
                 operand->numval = origin + label->value;
               } else {
                 z_fail(operand, "Couldn't resolve label: '%s'.\n", operand->value);
+                #ifndef DEBUG
                 exit(1);
+                #endif
               }
             }
 
@@ -69,7 +75,10 @@ uint8_t *z_emit(struct z_token_t **tokens, size_t tokcnt, size_t *emitsz, struct
           origin = op->numval & 0xffff;
 
         } else {
-          z_fail(op, "'org' directive operand should be a number, got %s instead.\n", z_toktype_str(op->type));
+          z_fail(
+            op,
+            "'org' directive operand should be a number, got %s instead.\n",
+            z_toktype_str(op->type));
           exit(1);
         }
 
@@ -88,6 +97,7 @@ uint8_t *z_emit(struct z_token_t **tokens, size_t tokcnt, size_t *emitsz, struct
             for (int j = 0; j < strlen(op->value); j++) {
               out[emitptr++] = op->value[j] & 0xff;
             }
+
           } else {
             z_fail(op, "Bad 'db' operand.\n");
             exit(1);

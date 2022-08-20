@@ -63,12 +63,10 @@ struct z_token_t **tokenize(
       }
 
     } else if (in_comment) {
-      //continue;
-
+      // PASS
 
     } else if (c == '"') {
       in_string = true;
-      //continue;
 
     } else if (c == '\'') {
       if (z_streq(tokbuf, "af")) {
@@ -78,7 +76,6 @@ struct z_token_t **tokenize(
         in_char = true;
       }
 
-      //continue;
     } else if (c == '[') {
       in_memref = true;
 
@@ -126,9 +123,6 @@ struct z_token_t **tokenize(
       memset(tokbuf, 0, TOKBUFSZ);
       tokbufptr = 0;
 
-      //printf("\x1b[38;5;1mADDING TOKEN %s\x1b[0m\n", token->value);
-      //printf("\x1b[38;5;1m  OPSEP %d\x1b[0m\n", opsep);
-
       if (z_typecmp(token,
           Z_TOKTYPE_DIRECTIVE | Z_TOKTYPE_INSTRUCTION | Z_TOKTYPE_LABEL)) {
         z_token_add(&tokens, tokcnt, token);
@@ -136,10 +130,8 @@ struct z_token_t **tokenize(
         z_parse_root(&tokens, root, bytepos, labels, defs, tokcnt);
 
         root = token;
-      //printf("\x1b[38;5;1m  ROOT\x1b[0m\n");
 
       } else if (opsep || !root->children_count) {
-      //printf("\x1b[38;5;1m  OPERAND\x1b[0m\n");
         z_token_add_child(root, token);
 
         if (z_streq(token->value, "c") &&
@@ -152,7 +144,6 @@ struct z_token_t **tokenize(
         opsep = false;
 
       } else {
-      //printf("\x1b[38;5;1m  OPCHILD\x1b[0m\n");
         z_token_add_child(operand, token);
       }
     }
@@ -170,11 +161,6 @@ struct z_token_t **tokenize(
       in_memref = false;
       in_char= false;
     }
-
-    //char tokbufbuf[0x1000] = {0};
-    //sprintf(tokbufbuf, "'%s'", tokbuf);
-    //printf("c = %c  tokbuf %-20s   com %d   str %d   chr %d   ref %d  opsep %d\n",
-    //    c, tokbufbuf, in_comment, in_string, in_char, in_memref, opsep);
   }
 
   z_parse_root(&tokens, root, bytepos, labels, defs, tokcnt);
@@ -369,7 +355,10 @@ void z_parse_root(
           (*codepos) += strlen(op->value);
 
         } else {
-          z_fail(op, "Wrong operand type in the 'db' directive: %s.\n", z_toktype_str(op->type));
+          z_fail(
+            op,
+            "Wrong operand type in the 'db' directive: %s.\n",
+            z_toktype_str(op->type));
           exit(1);
         }
       }
@@ -385,7 +374,10 @@ void z_parse_root(
           (*codepos) += 2 * strlen(op->value);
 
         } else {
-          z_fail(op, "Wrong operand type in the 'db' directive: %s.\n", z_toktype_str(op->type));
+          z_fail(
+            op,
+            "Wrong operand type in the 'db' directive: %s.\n",
+            z_toktype_str(op->type));
           exit(1);
         }
       }
@@ -402,7 +394,9 @@ void z_parse_root(
       struct z_token_t *sizetok = z_get_child(token, 0);
 
       if (!z_typecmp(sizetok, Z_TOKTYPE_NUMERIC)) {
-        z_fail(sizetok, "The first operand of the 'ds' directive has to be a numeric value.\n");
+        z_fail(
+          sizetok,
+          "The first operand of the 'ds' directive has to be a numeric value.\n");
         exit(1);
       }
 
@@ -418,11 +412,27 @@ void z_parse_root(
       struct z_token_t *valtok = z_get_child(token, 1);
 
       if (!z_typecmp(keytok, Z_TOKTYPE_IDENTIFIER)) {
-        z_fail(keytok, "The first operand of the 'def' diretive must be an identifier. Got %s istead.\n", z_toktype_str(keytok->type));
+        z_fail(
+          keytok,
+          "The first operand of the 'def' diretive must be an identifier. "
+          "Got %s istead.\n",
+          z_toktype_str(keytok->type));
         exit(1);
       }
 
-      struct z_def_t *def = z_def_new(keytok->value, valtok);
+      struct z_def_t *existing = z_def_get(*defs, keytok->value);
+      if (existing) {
+        z_fail(
+          keytok,
+          "Redefinition of '%s'. Previously defined here: %s:%d:%d\n",
+          keytok->value,
+          existing->definition->fname,
+          existing->definition->line+1,
+          existing->definition->col+1);
+        exit(1);
+      }
+
+      struct z_def_t *def = z_def_new(keytok->value, valtok, token);
       z_def_add(defs, def);
 
     } else if (z_streq(token->value, "include")) {
@@ -467,16 +477,19 @@ struct z_label_t *z_label_get(struct z_label_t *labels, char *key) {
   return NULL;
 }
 
-struct z_def_t *z_def_new(char *key, struct z_token_t *value) {
+struct z_def_t *z_def_new(
+    char *key, struct z_token_t *value, struct z_token_t *deftok) {
   struct z_def_t *def = malloc(sizeof (struct z_def_t));
   strcpy(def->key, key);
   def->value = value;
+  def->definition = deftok;
   def->next = NULL;
   return def;
 }
 
 void z_def_add(struct z_def_t **defs, struct z_def_t *def) {
   struct z_def_t *ptr = *defs;
+
   if (!ptr) {
     *defs = def;
     return;
@@ -516,6 +529,52 @@ struct z_token_t **z_tokens_merge(
     out[i+tokcnt1] = tokens2[i];
   }
 
+  free(tokens2);
 
   return out;
+}
+
+void labels_free(struct z_label_t *labels) {
+  struct z_label_t *ptr = labels;
+
+  while (ptr != NULL) {
+    free(ptr);
+    ptr = ptr->next;
+  }
+}
+
+void defs_free(struct z_def_t *defs) {
+  if (!defs) return;
+
+  struct z_def_t *ptr = defs;
+
+  while (ptr != NULL) {
+    free(ptr);
+    ptr = ptr->next;
+  }
+}
+
+void tokens_free(struct z_token_t **tokens, size_t tokcnt) {
+  for (int i = 0; i < tokcnt; i++) {
+    struct z_token_t *tok = tokens[i];
+
+    for (int j = 0; j < tok->children_count; j++) {
+      struct z_token_t *child = tok->children[j];
+
+      for (int k = 0; k < child->children_count; k++) {
+        struct z_token_t *grandchild = child->children[k];
+        free(grandchild);
+      }
+
+      free(child);
+    }
+
+    if (tok->opcode) {
+      free(tok->opcode);
+    }
+
+    free(tok);
+  }
+
+  free(tokens);
 }

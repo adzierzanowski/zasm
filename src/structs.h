@@ -31,7 +31,6 @@ struct z_token_t {
   const char *fname;            // Source filename
   size_t children_count;        // Number of children
   struct z_token_t **children;  // Child tokens array
-  struct z_token_t *parent;     // I think it's unused, TODO: make sure and delete
   struct z_opcode_t *opcode;    // Used in instruction tokens to specify emitted values
   int numval;                   // Used in numerical tokens to specify numerical value
   int line;                     // Source code line
@@ -54,6 +53,7 @@ struct z_def_t {
   char key[BUFSZ];
   struct z_token_t *value;
   struct z_def_t *next;
+  struct z_token_t *definition;
 };
 
 struct z_opcode_t {

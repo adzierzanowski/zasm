@@ -26,6 +26,9 @@ $(BUILD)/%.o: $(SRC)/%.c Makefile
 	@- mkdir -p $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 
+leaks:
+	leaks --atExit -- ./zasm -f test/test.s -vv
+
 clean:
 	- rm -rf $(BUILD)
 	- rm $(TARGET)

@@ -4,8 +4,8 @@
 #include "structs.h"
 #include "tokenizer.h"
 #include "emitter.h"
-
 #include "config.h"
+
 
 void usage(void);
 void print_tokens(struct z_token_t **tokens, size_t tokcnt);
@@ -78,7 +78,6 @@ int main(int argc, char *argv[]) {
     print_tokens(tokens, tokcnt);
   }
 
-
   size_t emitsz = 0;
   uint8_t *emitted = z_emit(tokens, tokcnt, &emitsz, labels, bytepos);
 
@@ -98,6 +97,11 @@ int main(int argc, char *argv[]) {
     fwrite(emitted, sizeof (uint8_t), emitsz, of);
     fclose(of);
   }
+
+  tokens_free(tokens, tokcnt);
+  labels_free(labels);
+  defs_free(defs);
+  free(emitted);
 
   return 0;
 }
@@ -127,19 +131,29 @@ void print_tokens(struct z_token_t **tokens, size_t tokcnt) {
     }
 
     char codepos[0x1000] = {0};
-    sprintf(codepos, "\x1b[38;5;245m%s:%d:%d\x1b[0m", token->fname, token->line+1, token->col+1);
+    sprintf(
+      codepos,
+      "\x1b[38;5;245m%s:%d:%d\x1b[0m",
+      token->fname,
+      token->line+1,
+      token->col+1);
+
     printf("\n%4d %-40s \x1b[38;5;1mroot    %s%-10s\x1b[0m      '%s%s\x1b[0m'\n",
-        i,
-        codepos,
-        z_toktype_color(token->type),
-        z_toktype_str(token->type),
-        z_toktype_color(token->type),
-        token->value);
+      i,
+      codepos,
+      z_toktype_color(token->type),
+      z_toktype_str(token->type),
+      z_toktype_color(token->type),
+      token->value);
 
     for (int j = 0; j < token->children_count; j++) {
       struct z_token_t *operand = token->children[j];
       sprintf(
-        codepos, "\x1b[38;5;245m%s:%d:%d\x1b[0m", operand->fname, operand->line+1, operand->col+1);
+        codepos,
+        "\x1b[38;5;245m%s:%d:%d\x1b[0m",
+        operand->fname,
+        operand->line+1,
+        operand->col+1);
       printf("     %-40s \x1b[38;5;4moper    %s─%s %s%c%-9s\x1b[0m '%s%s\x1b[0m' (%d)\n",
           codepos,
           j == token->children_count - 1 ? "└" : "├",

@@ -156,14 +156,14 @@ void z_validate_operands(struct z_token_t *token, int min_opcnt, int max_opcnt, 
   }
 }
 
-
 void z_set_offsets(
     struct z_token_t *token, int label_offset,struct z_token_t *numop) {
   token->label_offset = label_offset;
   token->numop = numop;
 }
 
-struct z_opcode_t *z_opcode_match(struct z_token_t *token, struct z_def_t *defs) {
+struct z_opcode_t *z_opcode_match(
+    struct z_token_t *token, struct z_def_t *defs) {
   struct z_opcode_t *opcode = malloc(sizeof (struct z_opcode_t));
 
   opcode->size = 0;
@@ -173,12 +173,17 @@ struct z_opcode_t *z_opcode_match(struct z_token_t *token, struct z_def_t *defs)
 
     if (z_typecmp(tok, Z_TOKTYPE_IDENTIFIER)) {
       struct z_def_t *def = z_def_get(defs, tok->value);
+
       if (def) {
         struct z_token_t *deftok = def->value;
         struct z_token_t *substitute = z_token_new(
           tok->fname, tok->line, tok->col, deftok->value, deftok->type);
         substitute->memref = tok->memref;
         substitute->numval = deftok->numval;
+
+        struct z_token_t *child = token->children[i];
+        free(child);
+
         token->children[i] = substitute;
       }
     }
@@ -205,17 +210,17 @@ struct z_opcode_t *z_opcode_match(struct z_token_t *token, struct z_def_t *defs)
       z_opcode_set(opcode, 1, 0x46 | (z_reg8_bits(op1) << 3));
 
     // LD r, [IX + d]
-    } else if (z_is_abcdehl(op1, false) && z_is_reg16(op2, "ix", true) && !op1->memref) {
+    } else if (z_is_abcdehl(op1, false) && z_is_reg16(op2, "ix", true)) {
       z_opcode_set(opcode, 3, 0xdd, 0x46 | (z_reg8_bits(op1) << 3), 0);
       z_set_offsets(token, 2, op2->children[1]);
 
     // LD r, [IY + d]
-    } else if (z_is_abcdehl(op1, false) && z_is_reg16(op2, "iy", true) && !op1->memref) {
+    } else if (z_is_abcdehl(op1, false) && z_is_reg16(op2, "iy", true)) {
       z_opcode_set(opcode, 3, 0xfd, 0x46 | (z_reg8_bits(op1) << 3), 0);
       z_set_offsets(token, 2, op2->children[1]);
 
     // LD [HL], r
-    } else if (z_is_hl(op1) && z_is_abcdehl(op2, false) && op1->memref && !op2->memref) {
+    } else if (z_is_hl(op1) && z_is_abcdehl(op2, false) && op1->memref) {
       z_opcode_set(opcode, 1, 0x70 | (z_reg8_bits(op2)));
 
     // LD [IX + d], r
