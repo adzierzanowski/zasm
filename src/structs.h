@@ -50,6 +50,12 @@ struct z_label_t {
   struct z_label_t *next;
 };
 
+struct z_def_t {
+  char key[BUFSZ];
+  struct z_token_t *value;
+  struct z_def_t *next;
+};
+
 struct z_opcode_t {
   size_t size;
   uint8_t bytes[4];

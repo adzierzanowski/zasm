@@ -46,9 +46,10 @@ int main(int argc, char *argv[]) {
   }
 
   struct z_label_t *labels = NULL;
+  struct z_def_t *defs = NULL;
   size_t tokcnt = 0;
   size_t bytepos = 0;
-  struct z_token_t **tokens = tokenize(fname, &tokcnt, &labels, &bytepos);
+  struct z_token_t **tokens = tokenize(fname, &tokcnt, &labels, &defs, &bytepos);
 
   if (z_config.very_verbose) {
     if (labels) {
@@ -61,10 +62,22 @@ int main(int argc, char *argv[]) {
       }
     }
 
+    if (defs) {
+      printf("\n");
+      printf("\x1b[38;5;4mDEFINES\x1b[0m\n");
+
+      struct z_def_t *ptr = defs;
+      while (ptr != NULL) {
+        printf("  %s: %s\n", ptr->key, ptr->value->value);
+        ptr = ptr->next;
+      }
+    }
+
     printf("\n");
     printf("\x1b[38;5;4m%zu TOKENS\x1b[0m\n", tokcnt);
     print_tokens(tokens, tokcnt);
   }
+
 
   size_t emitsz = 0;
   uint8_t *emitted = z_emit(tokens, tokcnt, &emitsz, labels, bytepos);

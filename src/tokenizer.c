@@ -2,7 +2,11 @@
 
 
 struct z_token_t **tokenize(
-  const char *fname, size_t *tokcnt, struct z_label_t **labels, size_t *bytepos) {
+    const char *fname,
+    size_t *tokcnt,
+    struct z_label_t **labels,
+    struct z_def_t **defs,
+    size_t *bytepos) {
 
   FILE *f = fopen(fname, "r");
 
@@ -79,7 +83,7 @@ struct z_token_t **tokenize(
     } else if (c == '[') {
       in_memref = true;
 
-    } else if (isalnum(c)) {
+    } else if (isalnum(c) || c == '_') {
       tokbuf[tokbufptr++] = c;
 
     } else if (c == ';') {
@@ -130,7 +134,7 @@ struct z_token_t **tokenize(
           Z_TOKTYPE_DIRECTIVE | Z_TOKTYPE_INSTRUCTION | Z_TOKTYPE_LABEL)) {
         z_token_add(&tokens, tokcnt, token);
 
-        z_parse_root(root, bytepos, labels);
+        z_parse_root(root, bytepos, labels, defs);
 
         root = token;
       //printf("\x1b[38;5;1m  ROOT\x1b[0m\n");
@@ -174,7 +178,7 @@ struct z_token_t **tokenize(
     //    c, tokbufbuf, in_comment, in_string, in_char, in_memref, opsep);
   }
 
-  z_parse_root(root, bytepos, labels);
+  z_parse_root(root, bytepos, labels, defs);
 
   return tokens;
 }
@@ -335,13 +339,13 @@ bool z_typecmp(struct z_token_t *token, int types) {
 }
 
 void z_parse_root(
-    struct z_token_t *token, size_t *codepos, struct z_label_t **labels) {
+    struct z_token_t *token, size_t *codepos, struct z_label_t **labels, struct z_def_t **defs) {
   if (!token) return;
 
   z_expr_cvt(token);
 
   if (z_typecmp(token, Z_TOKTYPE_INSTRUCTION)) {
-    struct z_opcode_t *opcode = z_opcode_match(token);
+    struct z_opcode_t *opcode = z_opcode_match(token, *defs);
     token->opcode = opcode;
     (*codepos) += opcode->size;
 
@@ -399,10 +403,30 @@ void z_parse_root(
       }
 
       (*codepos) += sizetok->numval;
+
+    } else if (z_streq(token->value, "def")) {
+      if (token->children_count != 2) {
+        z_fail(token, "'def' directive requires exactly two operands.\n");
+        exit(1);
+      }
+
+      struct z_token_t *keytok = z_get_child(token, 0);
+      struct z_token_t *valtok = z_get_child(token, 1);
+
+      if (!z_typecmp(keytok, Z_TOKTYPE_IDENTIFIER)) {
+        z_fail(keytok, "The first operand of the 'def' diretive must be an identifier. Got %s istead.\n", z_toktype_str(keytok->type));
+        exit(1);
+      }
+
+      struct z_def_t *def = z_def_new(keytok->value, valtok);
+      printf("Adding def: %s\n", keytok->value);
+      z_def_add(defs, def);
+
+    } else if (z_streq(token->value, "include")) {
+      // TODO:
+      z_fail(token, "Includes are not implemented yet.\n");
+      exit(1);
     }
-
-  } else if (z_streq(token->value, "def")) {
-
   }
 }
 
@@ -420,6 +444,45 @@ struct z_label_t *z_label_get(struct z_label_t *labels, char *key) {
 
   while (ptr != NULL) {
     if (z_streq(ptr->key, key)) {
+      return ptr;
+    }
+
+    ptr = ptr->next;
+  }
+
+  return NULL;
+}
+
+struct z_def_t *z_def_new(char *key, struct z_token_t *value) {
+  struct z_def_t *def = malloc(sizeof (struct z_def_t));
+  strcpy(def->key, key);
+  def->value = value;
+  def->next = NULL;
+  return def;
+}
+
+void z_def_add(struct z_def_t **defs, struct z_def_t *def) {
+  struct z_def_t *ptr = *defs;
+  if (!ptr) {
+    *defs = def;
+    return;
+  }
+
+  while (ptr->next != NULL) {
+    ptr = ptr->next;
+  }
+
+  ptr->next = def;
+}
+
+struct z_def_t *z_def_get(struct z_def_t *defs, char *key) {
+  struct z_def_t *ptr = defs;
+  printf("Searching for definition of %s.\n", key);
+
+  while (ptr != NULL){
+    printf("  Trying %s...\n", ptr->key);
+    if (z_streq(ptr->key, key)) {
+      printf("    It's a match!\n");
       return ptr;
     }
 

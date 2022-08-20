@@ -163,10 +163,26 @@ void z_set_offsets(
   token->numop = numop;
 }
 
-struct z_opcode_t *z_opcode_match(struct z_token_t *token) {
+struct z_opcode_t *z_opcode_match(struct z_token_t *token, struct z_def_t *defs) {
   struct z_opcode_t *opcode = malloc(sizeof (struct z_opcode_t));
 
   opcode->size = 0;
+
+  for (int i = 0; i < token->children_count; i++) {
+    struct z_token_t *tok = z_get_child(token, i);
+
+    if (z_typecmp(tok, Z_TOKTYPE_IDENTIFIER)) {
+      struct z_def_t *def = z_def_get(defs, tok->value);
+      if (def) {
+        struct z_token_t *deftok = def->value;
+        struct z_token_t *substitute = z_token_new(
+          tok->fname, tok->line, tok->col, deftok->value, deftok->type);
+        substitute->memref = tok->memref;
+        substitute->numval = deftok->numval;
+        token->children[i] = substitute;
+      }
+    }
+  }
 
   if (TOKVAL(token, "ld")) {
     z_validate_operands(token, 2, 2);
