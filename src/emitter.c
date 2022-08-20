@@ -77,12 +77,16 @@ uint8_t *z_emit(struct z_token_t **tokens, size_t tokcnt, size_t *emitsz, struct
         for (int i = 0; i < token->children_count; i++) {
           struct z_token_t *op = token->children[i];
 
-          if (z_typecmp(op, Z_TOKTYPE_NUMERIC)) {
-            out[emitptr++] = op->numval;
+          if (z_typecmp(op, Z_TOKTYPE_EXPRESSION)) {
+            z_expr_eval(op, labels, origin);
+            out[emitptr++] = op->numval & 0xff;
+
+          } else if (z_typecmp(op, Z_TOKTYPE_NUMERIC)) {
+            out[emitptr++] = op->numval & 0xff;
 
           } else if (z_typecmp(op, Z_TOKTYPE_STRING)) {
             for (int j = 0; j < strlen(op->value); j++) {
-              out[emitptr++] = op->value[j];
+              out[emitptr++] = op->value[j] & 0xff;
             }
           } else {
             z_fail(op, "Bad 'db' operand.\n");
@@ -94,7 +98,12 @@ uint8_t *z_emit(struct z_token_t **tokens, size_t tokcnt, size_t *emitsz, struct
         for (int i = 0; i < token->children_count; i++) {
           struct z_token_t *op = token->children[i];
 
-          if (z_typecmp(op, Z_TOKTYPE_NUMERIC)) {
+          if (z_typecmp(op, Z_TOKTYPE_EXPRESSION)) {
+            z_expr_eval(op, labels, origin);
+            out[emitptr++] = op->numval & 0xff;
+            out[emitptr++] = op->numval >> 8;
+
+          } else if (z_typecmp(op, Z_TOKTYPE_NUMERIC)) {
             out[emitptr++] = op->numval & 0xff;
             out[emitptr++] = op->numval >> 8;
 
@@ -112,6 +121,10 @@ uint8_t *z_emit(struct z_token_t **tokens, size_t tokcnt, size_t *emitsz, struct
 
       } else if (z_streq(token->value, "ds")) {
         struct z_token_t *sizeop = z_get_child(token, 0);
+
+        if (z_typecmp(sizeop, Z_TOKTYPE_EXPRESSION)) {
+          z_expr_eval(sizeop, labels, origin);
+        }
 
         uint8_t emitval = 0;
         if (token->children_count == 2) {

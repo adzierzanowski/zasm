@@ -88,6 +88,7 @@ struct z_token_t **tokenize(
     } else if (z_indexof("+-*/()~^&|%", c) > -1) {
       if (strlen(tokbuf) > 0) {
         token = z_token_new(fname, line, col, tokbuf, Z_TOKTYPE_NONE);
+        z_token_add_child(operand, token);
       }
 
       char buf[2] = { c, 0 };
@@ -399,6 +400,9 @@ void z_parse_root(
 
       (*codepos) += sizetok->numval;
     }
+
+  } else if (z_streq(token->value, "def")) {
+
   }
 }
 

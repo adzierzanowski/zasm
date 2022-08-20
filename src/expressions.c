@@ -48,6 +48,7 @@ void z_expr_cvt(struct z_token_t *token) {
 
 void z_expr_eval(struct z_token_t *token, struct z_label_t *labels, uint16_t origin) {
   if (z_typecmp(token, Z_TOKTYPE_EXPRESSION)) {
+    //printf("\nEVALUATING AN EXPRESSION\n");
     struct z_token_t *outq[TOKBUFSZ] = {0};
     struct z_token_t *opstack[TOKBUFSZ] = {0};
     int qptr = 0;
@@ -72,14 +73,148 @@ void z_expr_eval(struct z_token_t *token, struct z_label_t *labels, uint16_t ori
         }
 
       } else if (z_typecmp(tok, Z_TOKTYPE_OPERATOR)) {
-        // TODO: implement shunting yard
+        if (z_streq(tok->value, "("))  {
+          opstack[sptr++] = tok;
+        //  printf("  %s -> opstack\n", tok->value);
+
+        } else if (z_streq(tok->value, ")")) {
+          while (sptr > 0) {
+            struct z_token_t *op = opstack[sptr-1];
+
+            if (z_streq(op->value, "(")) {
+              sptr--;
+              break;
+
+            } else {
+              outq[qptr++] = opstack[--sptr];
+         //     printf("  %s (opstack) -> out\n", op->value);
+            }
+          }
+
+        } else {
+          while (sptr > 0) {
+            struct z_token_t *op = opstack[sptr-1];
+            if (!z_streq(op->value, "(") &&
+                (op->precedence < tok->precedence ||
+                  (op->precedence == tok->precedence && tok->left_associative))) {
+              sptr--;
+              outq[qptr++] = op;
+            } else {
+              break;
+            }
+          }
+
+          opstack[sptr++] = tok;
+        }
 
       } else {
         z_fail(tok, "Unexpected token type in expression: %s.\n", z_toktype_str(tok->type));
         exit(1);
       }
+/*
+      printf("    opstack ");
+      for (int j = 0; j < sptr; j++) {
+        printf("%s  ", opstack[j]->value);
+      }
+      printf("\n");
+
+      printf("     output ");
+      for (int j = 0; j < qptr; j++) {
+        printf("%s  ", outq[j]->value);
+      }
+      printf("\n");
+      */
     }
 
-    token->numval = 0x8000 + origin;
+    while (sptr > 0) {
+      outq[qptr++] = opstack[--sptr];
+      /*
+      printf("    opstack ");
+      for (int i = 0; i < sptr; i++) {
+        printf("%s  ", opstack[i]->value);
+      }
+      printf("\n");
+
+      printf("     output ");
+      for (int i = 0; i < qptr; i++) {
+        printf("%s  ", outq[i]->value);
+      }
+      printf("\n");
+      */
+    }
+
+    /*
+    printf("OUTQ:\n");
+    for (int i = 0; i < qptr; i++) {
+      printf("    %d    %s\n", i, outq[i]->value);
+    }
+    */
+
+    int vstack[TOKBUFSZ] = {0};
+    int vptr = 0;
+
+    for (int i = 0; i < qptr; i++) {
+      struct z_token_t *tok = outq[i];
+
+      if (z_typecmp(tok, Z_TOKTYPE_NUMERIC)) {
+        if (z_typecmp(tok, Z_TOKTYPE_IDENTIFIER) ||
+            (z_typecmp(tok, Z_TOKTYPE_NUMBER) && z_streq(tok->value, "$"))) {
+          vstack[vptr++] = tok->numval + origin;
+        } else {
+          vstack[vptr++] = tok->numval;
+        }
+
+      } else if (z_typecmp(tok, Z_TOKTYPE_OPERATOR)) {
+        int rval = vstack[--vptr];
+        int lval = vstack[--vptr];
+        int res = 0;
+
+        switch (tok->value[0]) {
+          case '+':
+            res = lval + rval;
+            break;
+
+          case '-':
+            res = lval - rval;
+            break;
+
+          case '*':
+            res = lval * rval;
+            break;
+
+          case '/':
+            if (rval == 0) {
+              z_fail(tok, "Division by zero in the expression.\n");
+              exit(1);
+            }
+            res = lval / rval;
+            break;
+
+          case '%':
+            if (rval == 0) {
+              z_fail(tok, "Division by zero in the expression.\n");
+              exit(1);
+            }
+            res = lval % rval;
+            break;
+
+          case '(':
+          case ')':
+            z_fail(tok, "Unmatched parentheses in the expression.\n");
+            exit(1);
+        }
+        vstack[vptr++] = res;
+      }
+
+      /*
+      printf("Vstack: ");
+      for (int j = 0; j < vptr; j++)  {
+        printf("%d ", vstack[j]);
+      }
+      printf("\n");
+      */
+    }
+
+    token->numval = vstack[0];
   }
 }
