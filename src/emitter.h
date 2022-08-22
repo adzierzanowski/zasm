@@ -13,6 +13,7 @@ uint8_t *z_emit(
   size_t tokcnt,
   size_t *emitsz,
   struct z_label_t *labels,
+  struct z_def_t *defs,
   size_t bytepos);
 
 #endif

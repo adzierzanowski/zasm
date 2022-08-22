@@ -9,10 +9,10 @@
 
 #include "structs.h"
 
-void z_dprintf(const char *fname, size_t line, int col, const char *fmt, ...);
 bool z_strmatch(const char *str, ...);
 void z_fail(struct z_token_t *token, const char *fmt, ...);
 int z_indexof(char *haystack, char needle);
 bool z_streq(char *str1, char *str2);
+char *z_dirname(const char *fname);
 
 #endif

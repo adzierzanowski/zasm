@@ -76,7 +76,7 @@ static uint8_t z_reg16_bits(struct z_token_t *token) {
   }
 }
 
-static uint8_t cond_bits(struct z_token_t *token) {
+static uint8_t z_cond_bits(struct z_token_t *token) {
   if (z_streq(token->value, "nz")) {
     return 0x00;
   } else if (z_streq(token->value, "z")) {
@@ -141,7 +141,8 @@ static bool z_is_num(struct z_token_t *token, bool memref) {
   return z_typecmp(token, Z_TOKTYPE_NUMERIC) && token->memref == memref;
 }
 
-void z_validate_operands(struct z_token_t *token, int min_opcnt, int max_opcnt, ...) {
+void z_validate_operands(
+    struct z_token_t *token, int min_opcnt, int max_opcnt) {
   if (token->children_count < min_opcnt || token->children_count > max_opcnt) {
     z_fail(
       token,
@@ -183,7 +184,6 @@ struct z_opcode_t *z_opcode_match(
 
         struct z_token_t *child = token->children[i];
         free(child);
-
         token->children[i] = substitute;
       }
     }
@@ -1260,7 +1260,7 @@ struct z_opcode_t *z_opcode_match(
       struct z_token_t *op2 = z_get_child(token, 1);
 
       if (z_is_num(op2, false)) {
-        z_opcode_set(opcode, 3, 0xc2 | (cond_bits(op1) << 3), 0, 0);
+        z_opcode_set(opcode, 3, 0xc2 | (z_cond_bits(op1) << 3), 0, 0);
         z_set_offsets(token, 1, op2);
 
       } else {
@@ -1342,7 +1342,7 @@ struct z_opcode_t *z_opcode_match(
 
       // CALL cc, nn
       if (z_is_num(op2, false)) {
-        z_opcode_set(opcode, 3, 0xc4 | (cond_bits(op1) << 3), 0, 0);
+        z_opcode_set(opcode, 3, 0xc4 | (z_cond_bits(op1) << 3), 0, 0);
         z_set_offsets(token, 1, op2);
 
       } else {
@@ -1365,7 +1365,7 @@ struct z_opcode_t *z_opcode_match(
 
       // RET cc
       if (z_typecmp(op1, Z_TOKTYPE_CONDITION)) {
-        z_opcode_set(opcode, 1, 0xc0 | (cond_bits(op1) << 3));
+        z_opcode_set(opcode, 1, 0xc0 | (z_cond_bits(op1) << 3));
 
       } else {
         match_fail("ret");

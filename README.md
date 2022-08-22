@@ -12,6 +12,4 @@ is significantly slower.
 
 ## TODO
 
-* Make defines usable in directives
-* "linking" to labels in other source
-* free allocated memory
+* find a little hanging memleak

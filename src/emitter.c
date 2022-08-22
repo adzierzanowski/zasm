@@ -6,6 +6,7 @@ uint8_t *z_emit(
     size_t tokcnt,
     size_t *emitsz,
     struct z_label_t *labels,
+    struct z_def_t *defs,
     size_t bytepos) {
   uint8_t *out = calloc(bytepos, sizeof (uint8_t));
 
@@ -32,7 +33,7 @@ uint8_t *z_emit(
             struct z_token_t *operand = token->numop;
 
             if (z_typecmp(operand, Z_TOKTYPE_EXPRESSION)) {
-              z_expr_eval(operand, labels, origin);
+              z_expr_eval(operand, labels, defs, origin);
 
             } else if (z_typecmp(operand, Z_TOKTYPE_IDENTIFIER)) {
               struct z_label_t *label = z_label_get(labels, operand->value);
@@ -87,11 +88,23 @@ uint8_t *z_emit(
           struct z_token_t *op = token->children[i];
 
           if (z_typecmp(op, Z_TOKTYPE_EXPRESSION)) {
-            z_expr_eval(op, labels, origin);
+            z_expr_eval(op, labels, defs, origin);
             out[emitptr++] = op->numval & 0xff;
 
           } else if (z_typecmp(op, Z_TOKTYPE_NUMERIC)) {
-            out[emitptr++] = op->numval & 0xff;
+            if (z_typecmp(op, Z_TOKTYPE_IDENTIFIER))  {
+              int *numval = z_lbldef_resolve(labels, defs, origin, op->value);
+              if (numval) {
+                out[emitptr++] = *numval & 0xff;
+                free(numval);
+
+              } else {
+                z_fail(op, "Couldn't resolve identifier '%s'\n", op->value);
+              }
+
+            } else {
+              out[emitptr++] = op->numval & 0xff;
+            }
 
           } else if (z_typecmp(op, Z_TOKTYPE_STRING)) {
             for (int j = 0; j < strlen(op->value); j++) {
@@ -109,13 +122,26 @@ uint8_t *z_emit(
           struct z_token_t *op = token->children[i];
 
           if (z_typecmp(op, Z_TOKTYPE_EXPRESSION)) {
-            z_expr_eval(op, labels, origin);
+            z_expr_eval(op, labels, defs, origin);
             out[emitptr++] = op->numval & 0xff;
             out[emitptr++] = op->numval >> 8;
 
           } else if (z_typecmp(op, Z_TOKTYPE_NUMERIC)) {
-            out[emitptr++] = op->numval & 0xff;
-            out[emitptr++] = op->numval >> 8;
+            if (z_typecmp(op, Z_TOKTYPE_IDENTIFIER))  {
+              int *numval = z_lbldef_resolve(labels, defs, origin, op->value);
+              if (numval) {
+                out[emitptr++] = *numval & 0xff;
+                out[emitptr++] = *numval >> 8;
+                free(numval);
+
+              } else {
+                z_fail(op, "Couldn't resolve identifier '%s'\n", op->value);
+              }
+
+            } else {
+              out[emitptr++] = op->numval & 0xff;
+              out[emitptr++] = op->numval >> 8;
+            }
 
           } else if (z_typecmp(op, Z_TOKTYPE_STRING)) {
             for (int j = 0; j < strlen(op->value); j++) {
@@ -133,7 +159,7 @@ uint8_t *z_emit(
         struct z_token_t *sizeop = z_get_child(token, 0);
 
         if (z_typecmp(sizeop, Z_TOKTYPE_EXPRESSION)) {
-          z_expr_eval(sizeop, labels, origin);
+          z_expr_eval(sizeop, labels, defs, origin);
         }
 
         uint8_t emitval = 0;

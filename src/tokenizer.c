@@ -1,7 +1,7 @@
 #include "tokenizer.h"
 
 
-struct z_token_t **tokenize(
+struct z_token_t **z_tokenize(
     const char *fname,
     size_t *tokcnt,
     struct z_label_t **labels,
@@ -9,6 +9,11 @@ struct z_token_t **tokenize(
     size_t *bytepos) {
 
   FILE *f = fopen(fname, "r");
+
+  if (f == NULL) {
+    z_fail(NULL, "Couldn't open file '%s'.\n", fname);
+    exit(1);
+  }
 
   struct z_token_t **tokens = NULL;
 
@@ -400,6 +405,10 @@ void z_parse_root(
         exit(1);
       }
 
+      if (z_typecmp(sizetok, Z_TOKTYPE_EXPRESSION)) {
+        z_expr_eval(sizetok, *labels, *defs, 0);
+      }
+
       (*codepos) += sizetok->numval;
 
     } else if (z_streq(token->value, "def")) {
@@ -442,13 +451,22 @@ void z_parse_root(
       }
 
       struct z_token_t *fname_token = z_get_child(token, 0);
-      // TODO: resolve file path
+      char fpath[BUFSZ] = {0};
+      char *dname = z_dirname(token->fname);
+      if (dname) {
+        sprintf(fpath, "%s/%s", dname, fname_token->value);
+        free(dname);
+      } else {
+        sprintf(fpath, "%s", fname_token->value);
+      }
+
       size_t new_tokcnt = 0;
       size_t final_tokcnt = 0;
-      struct z_token_t **new_tokens = tokenize(
-        fname_token->value, &new_tokcnt, labels, defs, codepos);
+      struct z_token_t **new_tokens = z_tokenize(
+        fpath, &new_tokcnt, labels, defs, codepos);
 
-      *tokens = z_tokens_merge(*tokens, new_tokens, *tokcnt, new_tokcnt, &final_tokcnt);
+      *tokens = z_tokens_merge(
+        *tokens, new_tokens, *tokcnt, new_tokcnt, &final_tokcnt);
       *tokcnt = final_tokcnt;
     }
   }
@@ -534,7 +552,7 @@ struct z_token_t **z_tokens_merge(
   return out;
 }
 
-void labels_free(struct z_label_t *labels) {
+void z_labels_free(struct z_label_t *labels) {
   struct z_label_t *ptr = labels;
 
   while (ptr != NULL) {
@@ -543,7 +561,7 @@ void labels_free(struct z_label_t *labels) {
   }
 }
 
-void defs_free(struct z_def_t *defs) {
+void z_defs_free(struct z_def_t *defs) {
   if (!defs) return;
 
   struct z_def_t *ptr = defs;
@@ -554,7 +572,7 @@ void defs_free(struct z_def_t *defs) {
   }
 }
 
-void tokens_free(struct z_token_t **tokens, size_t tokcnt) {
+void z_tokens_free(struct z_token_t **tokens, size_t tokcnt) {
   for (int i = 0; i < tokcnt; i++) {
     struct z_token_t *tok = tokens[i];
 
@@ -566,7 +584,17 @@ void tokens_free(struct z_token_t **tokens, size_t tokcnt) {
         free(grandchild);
       }
 
+      if (child->children) {
+        free(child->children);
+        child->children = NULL;
+      }
+
       free(child);
+    }
+
+    if (tok->children) {
+      free(tok->children);
+      tok->children = NULL;
     }
 
     if (tok->opcode) {
@@ -577,4 +605,77 @@ void tokens_free(struct z_token_t **tokens, size_t tokcnt) {
   }
 
   free(tokens);
+}
+
+void z_labels_export(FILE *f, struct z_label_t *labels, struct z_def_t *defs) {
+  struct z_label_t *ptr = labels;
+
+  if (labels == NULL) {
+    return;
+  }
+
+  char buf[BUFSZ] = {0};
+
+  while (ptr != NULL) {
+    sprintf(buf, "%s %d\n", ptr->key, ptr->value);
+    fwrite(buf, sizeof (char), strlen(buf), f);
+    ptr = ptr->next;
+  }
+
+  if (defs != NULL) {
+    struct z_def_t *dptr = defs;
+    while (dptr != NULL) {
+      if (z_typecmp(dptr->value, Z_TOKTYPE_NUMERIC)) {
+        sprintf(buf, "%s %d\n", dptr->key, dptr->value->numval);
+        fwrite(buf, sizeof (char), strlen(buf), f);
+      }
+
+      dptr = dptr->next;
+    }
+  }
+}
+
+struct z_label_t *z_labels_import(FILE *f) {
+  char *buf = NULL;
+  size_t bufsz = 0;
+
+  struct z_label_t *labels = NULL;
+
+  int res = 0;
+
+  while (res != -1) {
+    res = getline(&buf, &bufsz, f);
+    char *key = strtok(buf, " ");
+    char *val = strtok(NULL, "\n");
+    if (key != NULL && val != NULL) {
+      struct z_label_t *label = z_label_new(key, atoi(val));
+      z_label_add(&labels, label);
+    }
+  }
+
+  return labels;
+}
+
+int *z_lbldef_resolve(
+    struct z_label_t *labels,
+    struct z_def_t *defs,
+    uint16_t origin,
+    char *key) {
+  struct z_label_t *label = z_label_get(labels, key);
+
+  if (label) {
+    int *out = malloc(sizeof (int));
+    *out = label->value;
+    return out;
+  }
+
+  struct z_def_t *def = z_def_get(defs, key);
+
+  if (def)  {
+    int *out = malloc(sizeof (int));
+    *out = def->value->numval;
+    return out;
+  }
+
+  return NULL;
 }

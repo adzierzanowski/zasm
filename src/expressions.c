@@ -48,7 +48,7 @@ void z_expr_cvt(struct z_token_t *token) {
 }
 
 void z_expr_eval(
-    struct z_token_t *token, struct z_label_t *labels, uint16_t origin) {
+    struct z_token_t *token, struct z_label_t *labels, struct z_def_t *defs, uint16_t origin) {
   if (z_typecmp(token, Z_TOKTYPE_EXPRESSION)) {
     struct z_token_t *outq[TOKBUFSZ] = {0};
     struct z_token_t *opstack[TOKBUFSZ] = {0};
@@ -69,8 +69,15 @@ void z_expr_eval(
           outq[qptr++] = tok;
 
         } else {
-          z_fail(tok, "Couldn't retrieve label: '%s'.\n", tok->value);
-          exit(1);
+          struct z_def_t *def = z_def_get(defs, tok->value);
+          if (def) {
+            tok->numval = def->value->numval;
+            outq[qptr++] = tok;
+
+          } else {
+            z_fail(tok, "Couldn't retrieve identifier: '%s'.\n", tok->value);
+            exit(1);
+          }
         }
 
       } else if (z_typecmp(tok, Z_TOKTYPE_OPERATOR)) {

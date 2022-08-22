@@ -11,7 +11,14 @@ else
 	CFLAGS += -O3
 endif
 
-OBJS = main.o util.o tokenizer.o emitter.o config.o expressions.o opcodes.o
+OBJS = main.o \
+util.o \
+tokenizer.o \
+emitter.o \
+config.o \
+expressions.o \
+opcodes.o \
+argparser.o
 
 .PHONY: all
 all: $(TARGET)

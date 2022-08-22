@@ -5,53 +5,104 @@
 #include "tokenizer.h"
 #include "emitter.h"
 #include "config.h"
+#include "argparser.h"
 
 
 void usage(void);
-void print_tokens(struct z_token_t **tokens, size_t tokcnt);
+void z_print_tokens(struct z_token_t **tokens, size_t tokcnt);
 
 int main(int argc, char *argv[]) {
   const char *fname = NULL;
   const char *ofname = NULL;
+  const char *efname = NULL;
+  const char *lfname = NULL;
+  bool export_defs = false;
 
-  char c;
-  while ((c = getopt(argc, argv, "f:ho:v")) != -1) {
-    switch(c) {
-      case 'f':
-        fname = optarg;
-        break;
+  struct argparser_t *parser = argparser_new("zasm");
+  struct option_init_t opt = {0};
 
-      case 'h':
-        usage();
-        exit(0);
+  opt.short_name = "-d";
+  opt.long_name = "--export-defs";
+  opt.help = "export numeric defines";
+  opt.required = false;
+  opt.takes_arg = false;
+  argparser_from_struct(parser, &opt);
 
-      case 'o':
-        ofname = optarg;
-        break;
+  opt.short_name = "-e";
+  opt.long_name = "--export-labels";
+  opt.help = "export labels to a file";
+  opt.required = false;
+  opt.takes_arg = true;
+  argparser_from_struct(parser, &opt);
 
-      case 'v':
-        if (z_config.verbose) {
-          z_config.very_verbose = true;
+  opt.short_name = "-h";
+  opt.long_name = "--help";
+  opt.help = "show this help message and exit";
+  opt.required = false;
+  opt.takes_arg = false;
+  argparser_from_struct(parser, &opt);
 
-        } else {
-          z_config.verbose = true;
-        }
-        break;
-    }
+  opt.short_name = "-l";
+  opt.long_name = "--import-labels";
+  opt.help = "import labels from a file";
+  opt.required = false;
+  opt.takes_arg = true;
+  argparser_from_struct(parser, &opt);
+
+  opt.short_name = "-o";
+  opt.long_name = "--output";
+  opt.help = "output filename";
+  opt.required = false;
+  opt.takes_arg = true;
+  argparser_from_struct(parser, &opt);
+
+  opt.short_name = "-v";
+  opt.long_name = "--verbosity";
+  opt.help = "verbosity_level";
+  opt.required = false;
+  opt.takes_arg = true;
+  argparser_from_struct(parser, &opt);
+
+  argparser_parse(parser, argc, argv);
+
+  if (argparser_passed(parser, "-h")) {
+    argparser_usage(parser);
   }
 
-  if (fname == NULL) {
-    fprintf(stderr, "\x1b[38;5;1mERROR: -f INPUT_FILENAME is a required switch.\x1b[0m\n");
+  export_defs = argparser_passed(parser, "-d");
+  efname = argparser_get(parser, "-e");
+  lfname = argparser_get(parser, "-l");
+  ofname = argparser_get(parser, "-o");
+
+  int vlevel = 0;
+  if (argparser_passed(parser, "-v")) {
+    vlevel = atoi(argparser_get(parser, "-v"));
+  }
+  z_config.verbose = vlevel > 0;
+  z_config.very_verbose = vlevel > 1;
+
+  if (parser->positional_count < 2) {
+    z_fail(NULL, "Input filename is required.\n");
     exit(1);
   }
 
+  fname = parser->positional[1];
+  argparser_free(parser);
+
   struct z_label_t *labels = NULL;
+
+  if (lfname) {
+    FILE *f = fopen(lfname, "r");
+    labels = z_labels_import(f);
+    fclose(f);
+  }
+
   struct z_def_t *defs = NULL;
   size_t tokcnt = 0;
   size_t bytepos = 0;
-  struct z_token_t **tokens = tokenize(fname, &tokcnt, &labels, &defs, &bytepos);
+  struct z_token_t **tokens = z_tokenize(fname, &tokcnt, &labels, &defs, &bytepos);
 
-  if (z_config.very_verbose) {
+  if (z_config.verbose) {
     if (labels) {
       printf("\x1b[38;5;4mLABELS\x1b[0m\n");
       struct z_label_t *ptr = labels;
@@ -73,13 +124,16 @@ int main(int argc, char *argv[]) {
       }
     }
 
+  }
+
+  if (z_config.very_verbose) {
     printf("\n");
     printf("\x1b[38;5;4m%zu TOKENS\x1b[0m\n", tokcnt);
-    print_tokens(tokens, tokcnt);
+    z_print_tokens(tokens, tokcnt);
   }
 
   size_t emitsz = 0;
-  uint8_t *emitted = z_emit(tokens, tokcnt, &emitsz, labels, bytepos);
+  uint8_t *emitted = z_emit(tokens, tokcnt, &emitsz, labels, defs, bytepos);
 
   if (z_config.verbose) {
     printf("\n\x1b[38;5;4mEMIT\x1b[0m\n    ");
@@ -98,28 +152,21 @@ int main(int argc, char *argv[]) {
     fclose(of);
   }
 
-  tokens_free(tokens, tokcnt);
-  labels_free(labels);
-  defs_free(defs);
+  if (efname) {
+    FILE *ef = fopen(efname, "wa");
+    z_labels_export(ef, labels, export_defs ? defs : NULL);
+    fclose(ef);
+  }
+
+  z_tokens_free(tokens, tokcnt);
+  z_labels_free(labels);
+  z_defs_free(defs);
   free(emitted);
 
   return 0;
 }
 
-void usage() {
-  puts("zasm");
-  puts("    Zilog Z80 assembler.");
-  puts("");
-  puts("Usage: zasm -f INPUT [-o OUTPUT] [-v [-v]]");
-  puts("");
-  puts("Flags:");
-  puts("    -f INPUT     input filename");
-  puts("    -o OUTPUT    output filename");
-  puts("    -v           be verbose");
-  puts("    -vv          be very verbose");
-}
-
-void print_tokens(struct z_token_t **tokens, size_t tokcnt) {
+void z_print_tokens(struct z_token_t **tokens, size_t tokcnt) {
   for (int i = 0; i < tokcnt; i++) {
     struct z_token_t *token = tokens[i];
 

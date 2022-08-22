@@ -14,7 +14,7 @@
 
 struct z_token_t *z_token_new(
   const char *fname, size_t line, int col, char *value, int type);
-struct z_token_t **tokenize(
+struct z_token_t **z_tokenize(
     const char *fname,
     size_t *tokcnt,
     struct z_label_t **labels,
@@ -47,8 +47,15 @@ struct z_token_t **z_tokens_merge(
   size_t tokcnt1,
   size_t tokcnt2,
   size_t *tokcnt_out);
-void labels_free(struct z_label_t *labels);
-void defs_free(struct z_def_t *defs);
-void tokens_free(struct z_token_t **tokens, size_t tokcnt);
+void z_labels_free(struct z_label_t *labels);
+void z_defs_free(struct z_def_t *defs);
+void z_tokens_free(struct z_token_t **tokens, size_t tokcnt);
+void z_labels_export(FILE *f, struct z_label_t *labels, struct z_def_t *defs);
+struct z_label_t *z_labels_import(FILE *f);
+int *z_lbldef_resolve(
+  struct z_label_t *labels,
+  struct z_def_t *defs,
+  uint16_t origin,
+  char *key);
 
 #endif

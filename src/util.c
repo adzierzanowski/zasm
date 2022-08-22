@@ -1,29 +1,5 @@
 #include "util.h"
 
-#ifdef DEBUG
-
-void z_dprintf(const char *fname, size_t line, int col, const char *fmt, ...) {
-  char buf[0x1000] = {0};
-  char subbuf[0x1000] = {0};
-
-  va_list args;
-  va_start(args, fmt);
-  vsprintf(buf, fmt, args);
-  va_end(args);
-
-  sprintf(subbuf, "%s:%zu:%d: ", fname, line+1, col+1);
-
-  fprintf(stderr, "%-20s %s", subbuf, buf);
-}
-
-#else
-
-void z_dprintf(const char *fname, size_t line, int col, const char *fmt, ...) {
-
-}
-
-#endif
-
 bool z_strmatch(const char *str, ...) {
   va_list args;
   va_start(args, str);
@@ -75,4 +51,17 @@ int z_indexof(char *haystack, char needle) {
 
 bool z_streq(char *str1, char *str2) {
   return strcmp(str1, str2) == 0;
+}
+
+char *z_dirname(const char *fname) {
+  char *out = calloc(strlen(fname) + 1, sizeof (char));
+  strcpy(out, fname);
+  char *last_slash = strrchr(out, '/');
+  if (last_slash) {
+    *last_slash = 0;
+  } else {
+    free(out);
+    return NULL;
+  }
+  return out;
 }
