@@ -665,7 +665,7 @@ int *z_lbldef_resolve(
 
   if (label) {
     int *out = malloc(sizeof (int));
-    *out = label->value;
+    *out = label->value + origin;
     return out;
   }
 
