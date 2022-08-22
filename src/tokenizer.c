@@ -338,6 +338,7 @@ void z_parse_root(
   if (!token) return;
 
   z_expr_cvt(token);
+  token->codepos = *codepos;
 
   if (z_typecmp(token, Z_TOKTYPE_INSTRUCTION)) {
     struct z_opcode_t *opcode = z_opcode_match(token, *defs);
@@ -438,6 +439,14 @@ void z_parse_root(
           existing->definition->fname,
           existing->definition->line+1,
           existing->definition->col+1);
+        exit(1);
+      }
+      struct z_label_t *existing_lbl = z_label_get(*labels, keytok->value);
+      if (existing_lbl) {
+        z_fail(
+          keytok,
+          "Redefinition of '%s'.\n",
+          keytok->value);
         exit(1);
       }
 
@@ -617,15 +626,17 @@ void z_labels_export(FILE *f, struct z_label_t *labels, struct z_def_t *defs) {
   char buf[BUFSZ] = {0};
 
   while (ptr != NULL) {
-    sprintf(buf, "%s %d\n", ptr->key, ptr->value);
-    fwrite(buf, sizeof (char), strlen(buf), f);
+    if (ptr->key[0] != '_') {
+      sprintf(buf, "%s %d\n", ptr->key, ptr->value);
+      fwrite(buf, sizeof (char), strlen(buf), f);
+    }
     ptr = ptr->next;
   }
 
   if (defs != NULL) {
     struct z_def_t *dptr = defs;
     while (dptr != NULL) {
-      if (z_typecmp(dptr->value, Z_TOKTYPE_NUMERIC)) {
+      if (z_typecmp(dptr->value, Z_TOKTYPE_NUMERIC) && dptr->key[0] != '_') {
         sprintf(buf, "%s %d\n", dptr->key, dptr->value->numval);
         fwrite(buf, sizeof (char), strlen(buf), f);
       }

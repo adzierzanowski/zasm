@@ -126,14 +126,14 @@ int main(int argc, char *argv[]) {
 
   }
 
+  size_t emitsz = 0;
+  uint8_t *emitted = z_emit(tokens, tokcnt, &emitsz, labels, defs, bytepos);
+
   if (z_config.very_verbose) {
     printf("\n");
     printf("\x1b[38;5;4m%zu TOKENS\x1b[0m\n", tokcnt);
     z_print_tokens(tokens, tokcnt);
   }
-
-  size_t emitsz = 0;
-  uint8_t *emitted = z_emit(tokens, tokcnt, &emitsz, labels, defs, bytepos);
 
   if (z_config.verbose) {
     printf("\n\x1b[38;5;4mEMIT\x1b[0m\n    ");
@@ -171,10 +171,23 @@ void z_print_tokens(struct z_token_t **tokens, size_t tokcnt) {
     struct z_token_t *token = tokens[i];
 
     if (token->opcode && token->opcode->size > 0) {
-      printf("\n     opcode[%zu] = ", token->opcode->size);
+      printf("\n     \x1b[38;5;21m %04x \x1b[0m opcode[%zu] = \x1b[1m\x1b[38;5;213m", token->codepos, token->opcode->size);
       for (int j = 0; j < token->opcode->size; j++) {
+        if (j > 20) {
+          printf("...");
+          break;
+        }
+
+        if (j == token->label_offset && token->label_offset != 0) {
+          printf("\x1b[0m");
+        }
+
         printf("%02x ", token->opcode->bytes[j]);
       }
+      printf("\x1b[0m");
+
+    } else {
+      printf("\n     \x1b[38;5;21m %04x \x1b[0m", token->codepos);
     }
 
     char codepos[0x1000] = {0};

@@ -41,6 +41,7 @@ struct z_token_t {
   struct z_token_t *numop;      // Opcode to be used as a source when filling in the value
   int precedence;               // Used in operator tokens
   int left_associative;         // Used in operator tokens
+  uint16_t codepos;             // Position in the bytecode
 };
 
 struct z_label_t {
@@ -58,7 +59,7 @@ struct z_def_t {
 
 struct z_opcode_t {
   size_t size;
-  uint8_t bytes[4];
+  uint8_t bytes[BUFSZ];
 };
 
 #endif

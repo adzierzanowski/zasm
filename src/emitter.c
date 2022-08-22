@@ -37,8 +37,10 @@ uint8_t *z_emit(
 
             } else if (z_typecmp(operand, Z_TOKTYPE_IDENTIFIER)) {
               struct z_label_t *label = z_label_get(labels, operand->value);
+
               if (label) {
                 operand->numval = origin + label->value;
+
               } else {
                 z_fail(operand, "Couldn't resolve label: '%s'.\n", operand->value);
                 #ifndef DEBUG
@@ -50,14 +52,19 @@ uint8_t *z_emit(
             if (oplen == 1 || opcode->bytes[1] == 0xcb) {
               if (z_strmatch(token->value, "jr", "djnz", NULL)) {
                 out[opstart] = operand->numval - 2;
+                opcode->bytes[token->label_offset] = operand->numval - 2;
 
               } else {
                 out[opstart] = operand->numval;
+                opcode->bytes[token->label_offset] = operand->numval;
               }
 
-            } else if (oplen ==  2) {
+            } else if (oplen == 2) {
               out[opstart] = operand->numval & 0xff;
               out[opstart + 1] = operand->numval >> 8;
+
+              token->opcode->bytes[token->label_offset] = operand->numval & 0xff;
+              token->opcode->bytes[token->label_offset + 1] = operand->numval >> 8;
             }
           }
         }
@@ -84,12 +91,19 @@ uint8_t *z_emit(
         }
 
       } else if (z_streq(token->value, "db")) {
+        struct z_opcode_t *opcode = calloc(1, sizeof (struct z_opcode_t));
+        opcode->size = 0;
+        token->opcode = opcode;
+        int optr = 0;
+
         for (int i = 0; i < token->children_count; i++) {
           struct z_token_t *op = token->children[i];
 
           if (z_typecmp(op, Z_TOKTYPE_EXPRESSION)) {
             z_expr_eval(op, labels, defs, origin);
             out[emitptr++] = op->numval & 0xff;
+            opcode->size++;
+            opcode->bytes[optr++] = op->numval & 0xff;
 
           } else if (z_typecmp(op, Z_TOKTYPE_NUMERIC)) {
             if (z_typecmp(op, Z_TOKTYPE_IDENTIFIER))  {
@@ -97,6 +111,8 @@ uint8_t *z_emit(
               if (numval) {
                 out[emitptr++] = *numval & 0xff;
                 free(numval);
+                opcode->size++;
+                opcode->bytes[optr++] = *numval & 0xff;
 
               } else {
                 z_fail(op, "Couldn't resolve identifier '%s'\n", op->value);
@@ -104,11 +120,15 @@ uint8_t *z_emit(
 
             } else {
               out[emitptr++] = op->numval & 0xff;
+              opcode->size++;
+              opcode->bytes[optr++] = op->numval & 0xff;
             }
 
           } else if (z_typecmp(op, Z_TOKTYPE_STRING)) {
             for (int j = 0; j < strlen(op->value); j++) {
               out[emitptr++] = op->value[j] & 0xff;
+              opcode->size++;
+              opcode->bytes[optr++] = op->value[j] & 0xff;
             }
 
           } else {
@@ -118,6 +138,11 @@ uint8_t *z_emit(
         }
 
       } else if (z_streq(token->value, "dw")) {
+        struct z_opcode_t *opcode = calloc(1, sizeof (struct z_opcode_t));
+        opcode->size = 0;
+        int optr = 0;
+        token->opcode = opcode;
+
         for (int i = 0; i < token->children_count; i++) {
           struct z_token_t *op = token->children[i];
 
@@ -125,6 +150,9 @@ uint8_t *z_emit(
             z_expr_eval(op, labels, defs, origin);
             out[emitptr++] = op->numval & 0xff;
             out[emitptr++] = op->numval >> 8;
+            opcode->size += 2;
+            opcode->bytes[optr++] = op->numval & 0xff;
+            opcode->bytes[optr++] = op->numval >> 8;
 
           } else if (z_typecmp(op, Z_TOKTYPE_NUMERIC)) {
             if (z_typecmp(op, Z_TOKTYPE_IDENTIFIER))  {
@@ -134,6 +162,10 @@ uint8_t *z_emit(
                 out[emitptr++] = *numval >> 8;
                 free(numval);
 
+                opcode->size += 2;
+                opcode->bytes[optr++] = op->numval & 0xff;
+                opcode->bytes[optr++] = op->numval >> 8;
+
               } else {
                 z_fail(op, "Couldn't resolve identifier '%s'\n", op->value);
               }
@@ -141,12 +173,20 @@ uint8_t *z_emit(
             } else {
               out[emitptr++] = op->numval & 0xff;
               out[emitptr++] = op->numval >> 8;
+
+              opcode->size += 2;
+              opcode->bytes[optr++] = op->numval & 0xff;
+              opcode->bytes[optr++] = op->numval >> 8;
             }
 
           } else if (z_typecmp(op, Z_TOKTYPE_STRING)) {
             for (int j = 0; j < strlen(op->value); j++) {
               out[emitptr++] = op->value[j] & 0xff;
               out[emitptr++] = op->value[j] >> 8;
+
+              opcode->size += 2;
+              opcode->bytes[optr++] = op->numval & 0xff;
+              opcode->bytes[optr++] = op->numval >> 8;
             }
 
           } else {
