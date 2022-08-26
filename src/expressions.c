@@ -42,6 +42,7 @@ void z_expr_cvt(struct z_token_t *token) {
       for (int j = 0; j < operand->children_count; j++) {
         exprtoken->children[j+1] = operand->children[j];
       }
+      free(operand->children);
       token->children[i] = exprtoken;
     }
   }

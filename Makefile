@@ -1,4 +1,4 @@
-DEBUG = 1
+DEBUG = 0
 SRC = src
 BUILD = build
 TARGET = zasm
@@ -12,13 +12,13 @@ else
 endif
 
 OBJS = main.o \
-util.o \
-tokenizer.o \
-emitter.o \
-config.o \
-expressions.o \
-opcodes.o \
-argparser.o
+			 util.o \
+			 tokenizer.o \
+			 emitter.o \
+			 config.o \
+			 expressions.o \
+			 opcodes.o \
+			 argparser.o
 
 .PHONY: all
 all: $(TARGET)
@@ -26,10 +26,7 @@ all: $(TARGET)
 $(TARGET): $(addprefix $(BUILD)/, $(OBJS))
 	$(CC) $(CFLAGS) $^ -o $@
 
-.PHONY: $(SRC)/%.c
-$(SRC)/%.c: $(SRC)/%.h
-
-$(BUILD)/%.o: $(SRC)/%.c Makefile
+$(BUILD)/%.o: $(SRC)/%.c $(SRC)/%.h Makefile
 	@- mkdir -p $(BUILD)
 	$(CC) $(CFLAGS) -c $< -o $@
 

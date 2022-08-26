@@ -308,6 +308,7 @@ struct z_label_t *z_label_new(char *key, uint16_t value) {
   strcpy(label->key, key);
   label->value = value;
   label->next = NULL;
+  label->imported = false;
   return label;
 }
 
@@ -626,7 +627,7 @@ void z_labels_export(FILE *f, struct z_label_t *labels, struct z_def_t *defs) {
   char buf[BUFSZ] = {0};
 
   while (ptr != NULL) {
-    if (ptr->key[0] != '_') {
+    if (ptr->key[0] != '_' && !ptr->imported) {
       sprintf(buf, "%s %d\n", ptr->key, ptr->value);
       fwrite(buf, sizeof (char), strlen(buf), f);
     }
@@ -660,8 +661,14 @@ struct z_label_t *z_labels_import(FILE *f) {
     char *val = strtok(NULL, "\n");
     if (key != NULL && val != NULL) {
       struct z_label_t *label = z_label_new(key, atoi(val));
+      label->imported = true;
       z_label_add(&labels, label);
     }
+  }
+
+  if (buf) {
+    free(buf);
+    buf = NULL;
   }
 
   return labels;

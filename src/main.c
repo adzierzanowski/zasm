@@ -1,15 +1,6 @@
-#include <stdio.h>
-#include <unistd.h>
 
-#include "structs.h"
-#include "tokenizer.h"
-#include "emitter.h"
-#include "config.h"
-#include "argparser.h"
+#include "main.h"
 
-
-void usage(void);
-void z_print_tokens(struct z_token_t **tokens, size_t tokcnt);
 
 int main(int argc, char *argv[]) {
   const char *fname = NULL;
@@ -102,13 +93,14 @@ int main(int argc, char *argv[]) {
   size_t bytepos = 0;
   struct z_token_t **tokens = z_tokenize(fname, &tokcnt, &labels, &defs, &bytepos);
 
+
   if (z_config.verbose) {
     if (labels) {
       printf("\x1b[38;5;4mLABELS\x1b[0m\n");
       struct z_label_t *ptr = labels;
 
       while (ptr != NULL) {
-        printf("   %04x %s\n", ptr->value, ptr->key);
+        printf("  %04x %s\n", ptr->value, ptr->key);
         ptr = ptr->next;
       }
     }
@@ -136,11 +128,11 @@ int main(int argc, char *argv[]) {
   }
 
   if (z_config.verbose) {
-    printf("\n\x1b[38;5;4mEMIT\x1b[0m\n    ");
+    printf("\n\x1b[38;5;4mEMIT\x1b[0m\n  ");
     for (int i = 0; i < emitsz; i++) {
       printf("%02x ", emitted[i]);
       if ((i + 1) % 16 == 0) {
-        printf("\n    ");
+        printf("\n  ");
       }
     }
     printf("\n");
@@ -171,7 +163,11 @@ void z_print_tokens(struct z_token_t **tokens, size_t tokcnt) {
     struct z_token_t *token = tokens[i];
 
     if (token->opcode && token->opcode->size > 0) {
-      printf("\n     \x1b[38;5;21m %04x \x1b[0m opcode[%zu] = \x1b[1m\x1b[38;5;213m", token->codepos, token->opcode->size);
+      printf(
+        "\n     \x1b[38;5;21m %04x \x1b[0m opcode[%zu] = \x1b[1m\x1b[38;5;213m",
+        token->codepos,
+        token->opcode->size);
+
       for (int j = 0; j < token->opcode->size; j++) {
         if (j > 20) {
           printf("...");
@@ -214,7 +210,8 @@ void z_print_tokens(struct z_token_t **tokens, size_t tokcnt) {
         operand->fname,
         operand->line+1,
         operand->col+1);
-      printf("     %-40s \x1b[38;5;4moper    %s─%s %s%c%-9s\x1b[0m '%s%s\x1b[0m' (%d)\n",
+      printf("     %-40s \x1b[38;5;4moper    %s─%s %s%c%-9s\x1b[0m '%s%s\x1b[0m' "
+             "(\x1b[38;5;245mhex\x1b[0m %04x \x1b[38;5;245mdec\x1b[0m %d)\n",
           codepos,
           j == token->children_count - 1 ? "└" : "├",
           operand->children_count ? "┬─" : "──",
@@ -223,12 +220,17 @@ void z_print_tokens(struct z_token_t **tokens, size_t tokcnt) {
           z_toktype_str(operand->type),
           z_toktype_color(operand->type),
           operand->value,
+          operand->numval,
           operand->numval);
 
       for (int k = 0; k < operand->children_count; k++) {
         struct z_token_t *child = operand->children[k];
         sprintf(
-          codepos, "\x1b[38;5;245m%s:%d:%d\x1b[0m", child->fname, child->line+1, child->col+1);
+          codepos,
+          "\x1b[38;5;245m%s:%d:%d\x1b[0m",
+          child->fname,
+          child->line+1,
+          child->col+1);
         printf("     %-40s         \x1b[38;5;4m%s %s─── %s%-8s\x1b[0m '%s%s\x1b[0m'\n",
             codepos,
             j == token->children_count - 1 ? " " : "│",

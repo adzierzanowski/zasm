@@ -29,7 +29,6 @@ const char *z_toktype_str(enum z_toktype_t type);
 const char *z_toktype_color(enum z_toktype_t type);
 bool z_typecmp(struct z_token_t *token, int types);
 
-
 // List utils
 void z_token_add_child(struct z_token_t *parent, struct z_token_t *child);
 void z_token_add(

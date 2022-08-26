@@ -39,6 +39,7 @@ uint8_t *z_emit(
               struct z_label_t *label = z_label_get(labels, operand->value);
 
               if (label) {
+                //printf("LABEL EVAL: %s = %d\n", label->key, label->value + origin);
                 operand->numval = origin + label->value;
 
               } else {

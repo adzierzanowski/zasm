@@ -26,10 +26,10 @@ struct argparser_t *argparser_new(const char *prog_name)
 
 void argparser_add(
   struct argparser_t *parser,
-  const char *short_name, 
-  const char *long_name, 
-  const char *help, 
-  bool required, 
+  const char *short_name,
+  const char *long_name,
+  const char *help,
+  bool required,
   bool takes_arg
 ) {
   int i = parser->count;
@@ -63,7 +63,7 @@ void argparser_from_struct(
 
 static void argparser_take_arg(
     struct option_t *opt,
-    int *i, 
+    int *i,
     int argc,
     char *argv[])
 {
@@ -85,7 +85,7 @@ int argparser_parse(struct argparser_t *parser, int argc, char *argv[])
   if (parser->prog_name == NULL)
     parser->prog_name = argv[0];
 
-  // Double dash == accept only positional arguments from now on 
+  // Double dash == accept only positional arguments from now on
   bool double_dash = false;
 
   // Positional arguments
@@ -165,7 +165,7 @@ int argparser_parse(struct argparser_t *parser, int argc, char *argv[])
 
   if (pos_idxs != NULL)
     free(pos_idxs);
-  
+
   return passed_count;
 }
 
@@ -190,7 +190,7 @@ bool argparser_passed(struct argparser_t *parser, const char *optname)
   int i = argparser_index_of(parser, optname);
   if (i < 0)
     return false;
-  
+
   return parser->options[i]->passed;
 }
 
@@ -203,7 +203,7 @@ const char *argparser_get(struct argparser_t *parser, const char *optname)
   return parser->options[argi]->value;
 }
 
-void argparser_free(struct argparser_t *parser) 
+void argparser_free(struct argparser_t *parser)
 {
   if (parser != NULL)
   {
@@ -212,7 +212,7 @@ void argparser_free(struct argparser_t *parser)
 
     if (parser->options != NULL)
       free(parser->options);
-    
+
     if (parser->positional != NULL)
       free(parser->positional);
 
@@ -227,7 +227,7 @@ void argparser_usage(struct argparser_t *parser)
   {
     struct option_t *opt = parser->options[i];
 
-    char metavar[0xff] = {'\0'}; 
+    char metavar[0xff] = {'\0'};
     if (opt->takes_arg)
     {
       metavar[0] = ' ';

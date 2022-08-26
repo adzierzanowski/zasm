@@ -28,26 +28,27 @@ enum z_toktype_t {
 
 struct z_token_t {
   char value[BUFSZ];            // Raw string value of the token
+  struct z_token_t **children;  // Child tokens array
+  struct z_token_t *numop;      // Opcode to be used as a source when filling in the value
+  struct z_opcode_t *opcode;    // Used in instruction tokens to specify emitted values
   const char *fname;            // Source filename
   size_t children_count;        // Number of children
-  struct z_token_t **children;  // Child tokens array
-  struct z_opcode_t *opcode;    // Used in instruction tokens to specify emitted values
+  enum z_toktype_t type;        // Type of the token
   int numval;                   // Used in numerical tokens to specify numerical value
   int line;                     // Source code line
-  enum z_toktype_t type;        // Type of the token
-  bool memref;                  // Was it in memory reference brackets? ("[", "]")
   int col;                      // Source code column
   int label_offset;             // Used in emitter to fill in the numerical value in the opcode
-  struct z_token_t *numop;      // Opcode to be used as a source when filling in the value
   int precedence;               // Used in operator tokens
   int left_associative;         // Used in operator tokens
   uint16_t codepos;             // Position in the bytecode
+  bool memref;                  // Was it in memory reference brackets? ("[", "]")
 };
 
 struct z_label_t {
   char key[BUFSZ];
-  uint16_t value;
   struct z_label_t *next;
+  uint16_t value;
+  bool imported;
 };
 
 struct z_def_t {
