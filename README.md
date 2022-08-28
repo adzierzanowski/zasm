@@ -7,3 +7,9 @@ I've already written a Z80 assembler in Python which is available in my
 [z80 repository](https://github.com/adzierzanowski/z80/). The difference is that
 `zasm` is a 2-pass asm whereas the python one passed the source several times and
 is significantly slower.
+
+## TODO
+
+* Make instruction and register tokens case-insensitive
+* Fix filenames when including other files
+* Implement binary include
