@@ -802,7 +802,7 @@ struct z_opcode_t *z_opcode_match(
 
     // INC IY
     } else if (z_is_reg16(op1, "iy", false)) {
-      z_opcode_set(opcode, 2, 0xdd, 0x23);
+      z_opcode_set(opcode, 2, 0xfd, 0x23);
 
     // INC ss
     } else if (z_is_reg16(op1, NULL, false)) {

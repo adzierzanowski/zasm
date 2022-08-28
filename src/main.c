@@ -128,7 +128,7 @@ int main(int argc, char *argv[]) {
   }
 
   if (z_config.verbose) {
-    printf("\n\x1b[38;5;4mEMIT\x1b[0m\n  ");
+    printf("\n\x1b[38;5;4mEMIT\x1b[0m (%zu == 0x%04zx bytes)\n  ", emitsz, emitsz);
     for (int i = 0; i < emitsz; i++) {
       printf("%02x ", emitted[i]);
       if ((i + 1) % 16 == 0) {
