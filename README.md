@@ -59,6 +59,12 @@ Make the output verbose with level `1` or `2`.
 
 Emit the resulting binary into a file.
 
+#### `-t`, `--tap`
+
+Save the code as a tape image
+([TAP format](https://sinclair.wiki.zxnet.co.uk/wiki/TAP_format#Format_Description),
+e.g. for use in ZX Spectrum emulators).
+
 ## TODO
 
 * Implement binary include

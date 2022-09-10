@@ -63,4 +63,12 @@ struct z_opcode_t {
   uint8_t bytes[BUFSZ];
 };
 
+struct __attribute__((__packed__)) z_tap_header {
+  uint8_t tap_type;
+  char name[10];
+  uint16_t datalen;
+  uint16_t param1;
+  uint16_t param2;
+};
+
 #endif

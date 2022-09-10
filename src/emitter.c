@@ -218,3 +218,56 @@ uint8_t *z_emit(
 
   return out;
 }
+
+uint8_t *z_tap_make(
+  uint8_t *data, size_t datalen, const char *tapname, size_t *tapsz) {
+
+  size_t tapname_size = strlen(tapname);
+
+  struct z_tap_header header = {
+    .tap_type = Z_TAP_HDR_TYPE_CODE,
+    .datalen = datalen,
+    .param1 = 0x0000,
+    .param2 = 0x8000
+  };
+
+  // Pad name with spaces, no NULL termination, fixed 10 bytes
+  for (int i = 0; i < 10; i++) {
+    header.name[i] = i < tapname_size ? tapname[i] : ' ';
+  }
+
+  *tapsz = 2 + 1 + 17 + 1 +     // (HDR)  block size + block flag + header size + checksum
+           2 + 1 + datalen + 1; // (DATA) block size + block flag + data size + checksum
+
+
+  // HEADER BLOCK
+
+  uint8_t *tap = calloc(*tapsz, sizeof (uint8_t));
+  tap[0] = 0x13; // Header block is always 0x13 bytes long
+                 // tap[1] is 0 because the block size is u16
+                 // tap[2] is 0 because the header block flag is 0
+  memcpy(&tap[3], &header, 17);
+
+  uint8_t checksum = 0;
+  for (int i = 2; i < 20; i++) {
+    checksum ^= tap[i];
+  }
+  tap[20] = checksum; // Last byte of the header block
+
+
+  // DATA BLOCK
+
+  uint16_t *datablocklen = (uint16_t *) &tap[21];
+  *datablocklen = datalen + 2; // block flag + data + checksum
+
+  tap[23] = Z_TAP_BLK_FLG_DATA;
+  memcpy(&tap[24], data, datalen);
+
+  checksum = 0;
+  for (int i = 22; i < *tapsz; i++) {
+    checksum ^= tap[i];
+  }
+  tap[*tapsz-1] = checksum;
+
+  return tap;
+}

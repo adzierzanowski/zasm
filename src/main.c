@@ -7,6 +7,7 @@ int main(int argc, char *argv[]) {
   const char *ofname = NULL;
   const char *efname = NULL;
   const char *lfname = NULL;
+  const char *tfname = NULL;
   bool export_defs = false;
 
   struct argparser_t *parser = argparser_new("zasm");
@@ -47,6 +48,13 @@ int main(int argc, char *argv[]) {
   opt.takes_arg = true;
   argparser_from_struct(parser, &opt);
 
+  opt.short_name = "-t";
+  opt.long_name = "--tap";
+  opt.help = "tap filename";
+  opt.required = false;
+  opt.takes_arg = true;
+  argparser_from_struct(parser, &opt);
+
   opt.short_name = "-v";
   opt.long_name = "--verbosity";
   opt.help = "verbosity_level";
@@ -64,6 +72,7 @@ int main(int argc, char *argv[]) {
   efname = argparser_get(parser, "-e");
   lfname = argparser_get(parser, "-l");
   ofname = argparser_get(parser, "-o");
+  tfname = argparser_get(parser, "-t");
 
   int vlevel = 0;
   if (argparser_passed(parser, "-v")) {
@@ -148,6 +157,28 @@ int main(int argc, char *argv[]) {
     FILE *ef = fopen(efname, "wa");
     z_labels_export(ef, labels, export_defs ? defs : NULL);
     fclose(ef);
+  }
+
+  if (tfname) {
+    if (emitsz < 1) {
+      z_fail(NULL, "No data to put into TAP file.\n");
+      exit(1);
+    }
+
+    char tapname[10] = {0};
+    strncpy(tapname, tfname, 10);
+    for (int i = 0; i < 10; i++) {
+      if (tapname[i] == '.') {
+        tapname[i] = 0;
+      }
+    }
+
+    size_t tapsz = 0;
+    uint8_t *tap = z_tap_make(emitted, emitsz, tapname, &tapsz);
+    FILE *tf = fopen(tfname, "wb");
+    fwrite(tap, sizeof (uint8_t), tapsz, tf);
+    fclose(tf);
+    free(tap);
   }
 
   z_tokens_free(tokens, tokcnt);
