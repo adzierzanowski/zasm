@@ -1,4 +1,4 @@
-DEBUG = 0
+DEBUG = 1
 SRC = src
 BUILD = build
 TARGET = zasm

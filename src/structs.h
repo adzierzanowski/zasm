@@ -31,7 +31,7 @@ struct z_token_t {
   struct z_token_t **children;  // Child tokens array
   struct z_token_t *numop;      // Opcode to be used as a source when filling in the value
   struct z_opcode_t *opcode;    // Used in instruction tokens to specify emitted values
-  const char *fname;            // Source filename
+  char fname[BUFSZ];            // Source filename
   size_t children_count;        // Number of children
   enum z_toktype_t type;        // Type of the token
   int numval;                   // Used in numerical tokens to specify numerical value

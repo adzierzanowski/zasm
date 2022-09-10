@@ -34,6 +34,12 @@ struct z_token_t **z_tokenize(
   int c = 0;
   while (c != EOF) {
     c = fgetc(f);
+
+    if (c != -1 && c != 0 && c != 10 && !isprint(c)) {
+      z_fail(NULL, "Invalid character encountered: %d.\n", c);
+      exit(1);
+    }
+
     col++;
 
     struct z_token_t *token = NULL;
@@ -136,7 +142,7 @@ struct z_token_t **z_tokenize(
 
         root = token;
 
-      } else if (opsep || !root->children_count) {
+      } else if (opsep || (root && !root->children_count)) {
         z_token_add_child(root, token);
 
         if (z_streq(token->value, "c") &&
@@ -149,7 +155,12 @@ struct z_token_t **z_tokenize(
         opsep = false;
 
       } else {
-        z_token_add_child(operand, token);
+        if (operand) {
+          z_token_add_child(operand, token);
+        } else {
+          z_fail(token, "No parent to attach the token to.\n");
+          exit(1);
+        }
       }
     }
 
@@ -218,23 +229,26 @@ struct z_token_t *z_token_new(
   strcpy(token->value, value);
   token->type = type;
   token->memref = false;
-  token->fname = fname;
+  sprintf(token->fname, "%s", fname);
   token->line = line;
   token->col = col - strlen(value) - 1;
   token->left_associative = true;
 
   if (token->type == Z_TOKTYPE_NONE) {
-    if (z_strmatch(value, "bc", "de", "hl", "sp", "ix", "iy", "af", NULL)) {
+    if (z_strmatch_i(value, "bc", "de", "hl", "sp", "ix", "iy", "af", NULL)) {
       token->type = Z_TOKTYPE_REGISTER_16;
+      z_strlower(token->value);
 
     } else if (
-        z_strmatch(value, "a", "b", "c", "d", "e", "h", "l", "i", "r", NULL)) {
+        z_strmatch_i(value, "a", "b", "c", "d", "e", "h", "l", "i", "r", NULL)) {
       token->type = Z_TOKTYPE_REGISTER_8;
+      z_strlower(token->value);
 
-    } else if (z_strmatch(value, "z", "nz", "c", "nc", "po", "pe", "p", "m", NULL)) {
+    } else if (z_strmatch_i(value, "z", "nz", "c", "nc", "po", "pe", "p", "m", NULL)) {
       token->type = Z_TOKTYPE_CONDITION;
+      z_strlower(token->value);
 
-    } else if (z_strmatch(value,
+    } else if (z_strmatch_i(value,
         "ld", "push", "pop", "ex", "exx", "ldi", "ldir", "ldd", "lddr", "cpi",
         "cpir", "cpd", "cpdr", "add", "adc", "sub", "sbc", "and", "or", "xor",
         "cp", "inc", "dec", "daa", "cpl", "neg", "ccf", "scf", "nop", "halt",
@@ -243,6 +257,7 @@ struct z_token_t *z_token_new(
         "djnz", "call", "ret", "reti", "retn", "rst", "in", "ini", "inir",
         "ind", "indr", "out", "outi", "otir", "outd", "otdr", "jr", NULL)) {
       token->type = Z_TOKTYPE_INSTRUCTION;
+      z_strlower(token->value);
 
     } else if (
         z_strmatch(value, "ds", "dw", "db", "def", "include", "org", NULL)) {

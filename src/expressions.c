@@ -77,7 +77,9 @@ void z_expr_eval(
 
           } else {
             z_fail(tok, "Couldn't retrieve identifier: '%s'.\n", tok->value);
+            #ifndef DEBUG
             exit(1);
+            #endif
           }
         }
 

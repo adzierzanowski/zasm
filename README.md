@@ -10,6 +10,4 @@ is significantly slower.
 
 ## TODO
 
-* Make instruction and register tokens case-insensitive
-* Fix filenames when including other files
 * Implement binary include
