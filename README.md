@@ -14,7 +14,9 @@ is significantly slower.
 ; Comment (until newline)
 
 label:
-  ld hl, [msg + 2]           ; Indirect addressing is using square brackets.
+  ld hl, [msg + 2]           ; Indirect addressing is using [square brackets].
+                             ;   This is different from most Z80 assemblers
+                             ;   which use (parentheses).
                              ;   Expressions (including labels and characters)
                              ;   are allowed.
   jp $                       ; $ = current address
