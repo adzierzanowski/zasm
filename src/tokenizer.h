@@ -3,14 +3,18 @@
 
 #define TOKBUFSZ 0x1000
 
+#include <errno.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <ctype.h>
+
 #include "util.h"
 #include "structs.h"
 #include "opcodes.h"
 #include "config.h"
 #include "expressions.h"
+
 
 // Constructors
 struct z_token_t *z_token_new(
@@ -33,7 +37,7 @@ bool z_typecmp(struct z_token_t *token, int types);
 void z_token_add_child(struct z_token_t *parent, struct z_token_t *child);
 void z_token_add(
   struct z_token_t ***tokens, size_t *tokcnt, struct z_token_t *token);
-void z_label_add(struct z_label_t **labels, struct z_label_t *label);
+struct z_label_t *z_label_add(struct z_label_t **labels, struct z_label_t *label);
 void z_def_add(struct z_def_t **defs, struct z_def_t *def);
 struct z_token_t *z_get_child(struct z_token_t *token, int child_index);
 struct z_label_t *z_label_get(struct z_label_t *labels, char *key);

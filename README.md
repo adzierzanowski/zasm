@@ -23,6 +23,7 @@ label:
 
 ; Directives
 include "another/file.s"     ; Include another source
+incbin "binary/file.bin"     ; Include binary data
 org 0x8000                   ; Assume the code is loaded at address 0x8000
 db "Hello, World!", 10, 0    ; Emit bytes
 dw 'a'                       ; Emit words (this example will result in
@@ -67,4 +68,4 @@ e.g. for use in ZX Spectrum emulators).
 
 ## TODO
 
-* Implement binary include
+* Importing labels from multiple files

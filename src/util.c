@@ -62,11 +62,11 @@ int z_indexof(char *haystack, char needle) {
 }
 
 static bool z_streq_(char *str1, char *str2, bool case_sensitive) {
-  char buf1[BUFSZ] = {0};
-  char buf2[BUFSZ] = {0};
+  char buf1[Z_BUFSZ] = {0};
+  char buf2[Z_BUFSZ] = {0};
 
-  strncpy(buf1, str1, BUFSZ);
-  strncpy(buf2, str2, BUFSZ);
+  strncpy(buf1, str1, Z_BUFSZ);
+  strncpy(buf2, str2, Z_BUFSZ);
 
   if (!case_sensitive) {
     z_strlower(buf1);

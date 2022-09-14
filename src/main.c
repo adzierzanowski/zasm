@@ -93,6 +93,10 @@ int main(int argc, char *argv[]) {
 
   if (lfname) {
     FILE *f = fopen(lfname, "r");
+    if (f == NULL) {
+      z_fail(NULL, "Couldn't open file: '%s'.\n", lfname);
+      exit(1);
+    }
     labels = z_labels_import(f);
     fclose(f);
   }

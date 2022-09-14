@@ -260,7 +260,7 @@ struct z_token_t *z_token_new(
       z_strlower(token->value);
 
     } else if (
-        z_strmatch(value, "ds", "dw", "db", "def", "include", "org", NULL)) {
+        z_strmatch(value, "ds", "dw", "db", "def", "incbin", "include", "org", NULL)) {
       token->type = Z_TOKTYPE_DIRECTIVE;
 
     } else if (isdigit(value[0])) {
@@ -327,17 +327,23 @@ struct z_label_t *z_label_new(char *key, uint16_t value) {
   return label;
 }
 
-void z_label_add(struct z_label_t **labels, struct z_label_t *label) {
+// Adds a label to the label list.
+// If a label with duplicate key already exists in the list, it is returned.
+struct z_label_t *z_label_add(struct z_label_t **labels, struct z_label_t *label) {
   struct z_label_t *ptr = *labels;
   if (!ptr) {
     *labels = label;
-    return;
+    return NULL;
   }
 
   while (ptr->next != NULL) {
+    if (z_streq(label->key, ptr->key)) {
+      return ptr;
+    }
     ptr = ptr->next;
   }
   ptr->next = label;
+  return NULL;
 }
 
 bool z_typecmp(struct z_token_t *token, int types) {
@@ -363,7 +369,15 @@ void z_parse_root(
 
   } else if (z_typecmp(token, Z_TOKTYPE_LABEL)) {
     struct z_label_t *label = z_label_new(token->value, *codepos);
-    z_label_add(labels, label);
+    struct z_label_t *duplicate = z_label_add(labels, label);
+    if (duplicate) {
+      z_fail(
+        token,
+        "Duplicate label definition. Previously defined at address 0x%04hx%s.\n",
+        duplicate->value,
+        duplicate->imported ? " (imported)" : "");
+      exit(1);
+    }
 
   } else if (z_typecmp(token, Z_TOKTYPE_DIRECTIVE)) {
     if (z_streq(token->value, "db")) {
@@ -476,7 +490,7 @@ void z_parse_root(
       }
 
       struct z_token_t *fname_token = z_get_child(token, 0);
-      char fpath[BUFSZ] = {0};
+      char fpath[Z_BUFSZ] = {0};
       char *dname = z_dirname(token->fname);
       if (dname) {
         sprintf(fpath, "%s/%s", dname, fname_token->value);
@@ -493,6 +507,34 @@ void z_parse_root(
       *tokens = z_tokens_merge(
         *tokens, new_tokens, *tokcnt, new_tokcnt, &final_tokcnt);
       *tokcnt = final_tokcnt;
+
+    } else if (z_streq(token->value, "incbin")) {
+      struct z_token_t *fname_token = z_get_child(token, 0);
+      char fpath[Z_BUFSZ] = {0};
+      char *dname = z_dirname(token->fname);
+
+      if (dname) {
+        sprintf(fpath, "%s/%s", dname, fname_token->value);
+        free(dname);
+      } else {
+        sprintf(fpath, "%s", fname_token->value);
+      }
+
+      struct stat bin_stat;
+      int stat_res = stat(fpath, &bin_stat);
+      if (stat_res != 0) {
+        z_fail(token, "Error while testing file '%s': %s\n", fpath, strerror(errno));
+        exit(1);
+      }
+
+      size_t bin_size = bin_stat.st_size;
+      (*codepos) += bin_size;
+
+      #ifdef DEBUG
+      printf("incbin: %s: %zu bytes\n", fpath, bin_size);
+      #endif
+
+      sprintf(token->fname, "%s", fpath);
     }
   }
 }
@@ -639,7 +681,7 @@ void z_labels_export(FILE *f, struct z_label_t *labels, struct z_def_t *defs) {
     return;
   }
 
-  char buf[BUFSZ] = {0};
+  char buf[Z_BUFSZ] = {0};
 
   while (ptr != NULL) {
     if (ptr->key[0] != '_' && !ptr->imported) {
@@ -677,7 +719,14 @@ struct z_label_t *z_labels_import(FILE *f) {
     if (key != NULL && val != NULL) {
       struct z_label_t *label = z_label_new(key, atoi(val));
       label->imported = true;
-      z_label_add(&labels, label);
+      struct z_label_t *duplicate = z_label_add(&labels, label);
+      if (duplicate) {
+        z_fail(
+          NULL,
+          "Label currently being imported has already been defined at address 0x%04hx.\n",
+          duplicate->value);
+        exit(1);
+      }
     }
   }
 

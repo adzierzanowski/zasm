@@ -212,6 +212,23 @@ uint8_t *z_emit(
         for (int i = 0; i < sizeop->numval; i++) {
           out[emitptr++] = emitval;
         }
+
+      } else if (z_streq(token->value, "incbin")) {
+        FILE *f = fopen(token->fname, "rb");
+        if (!f) {
+          z_fail(token, "Couldn't open file '%s'.\n", token->fname);
+          exit(1);
+        }
+
+        uint8_t fbuf[Z_FBUFSZ] = {0};
+        size_t read_bytes = fread(fbuf, 1, Z_FBUFSZ, f);
+
+        for (int i = 0; i < read_bytes; i++) {
+          out[emitptr++] = fbuf[i];
+        }
+
+        fclose(f);
+
       }
     }
   }
